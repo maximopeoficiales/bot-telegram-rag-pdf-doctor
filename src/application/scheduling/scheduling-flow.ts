@@ -8,6 +8,8 @@ import {
   type EligibilityDecision,
   type PatientIntake
 } from '../../domain/eligibility/eligibility-engine.js';
+import type { AvailabilityService, BookingResult } from '../calendar/availability.service.js';
+import type { NotificationService } from '../notifications/notification.service.js';
 
 export const requiredIntakeFields = [
   'fullName',
@@ -39,6 +41,10 @@ export type SchedulingReply = {
   text: string;
   state: ConversationState;
   advanced: boolean;
+};
+
+export type SchedulingCaseStore = {
+  create(input: { telegramUserId: string; status: 'pending_review'; intake: PatientIntake }): Promise<{ id: number }>;
 };
 
 const locationWindows: Record<LocationId, { label: string; start: string; end: string }> = {
@@ -83,7 +89,10 @@ export function availableSlotsForLocation(locationId: LocationId): string[] {
 export class SchedulingFlow {
   constructor(
     private readonly conversations: ConversationStateStore,
-    private readonly eligibilityEngine = new EligibilityEngine()
+    private readonly eligibilityEngine = new EligibilityEngine(),
+    private readonly availability?: AvailabilityService,
+    private readonly notifications?: NotificationService,
+    private readonly cases?: SchedulingCaseStore
   ) {}
 
   async handleMessage(telegramUserId: string, text: string): Promise<SchedulingReply> {
@@ -103,6 +112,8 @@ export class SchedulingFlow {
         return this.handleSlot(existing, normalized);
       case 'scheduling.intake':
         return this.handleIntake(existing, normalized);
+      case 'scheduling.ready_to_confirm':
+        return this.handleConfirmation(existing, normalized);
       default:
         return this.persist(existing, existing.step, existing.data, 'I need a valid scheduling input to continue.', false);
     }
@@ -129,7 +140,8 @@ export class SchedulingFlow {
     }
 
     const draft = this.draft(state);
-    const slots = availableSlotsForLocation(draft.locationId ?? 'surco');
+    const locationId = draft.locationId ?? 'surco';
+    const slots = this.availability ? await this.availability.availableSlots({ locationId, date: text }) : availableSlotsForLocation(locationId);
 
     return this.persist(
       state,
@@ -186,7 +198,63 @@ export class SchedulingFlow {
     const nextStep = decision.outcome === 'reject' ? 'scheduling.rejected' : decision.outcome === 'pending_review' ? 'scheduling.pending_review' : 'scheduling.ready_to_confirm';
     const message = this.messageForDecision(decision);
 
-    return this.persist(state, nextStep, { ...draft, intake, eligibility: decision }, message, true);
+    let caseId: number | undefined;
+    if (decision.outcome === 'pending_review') {
+      const patient = toPatientIntake(intake);
+      const patientCase = await this.cases?.create({ telegramUserId: state.telegramUserId, status: 'pending_review', intake: patient });
+      if (patientCase) {
+        caseId = patientCase.id;
+        await this.notifications?.pendingReview({
+          caseId: patientCase.id,
+          patient,
+          reasonCode: decision.reasonCode,
+          requiresRadiography: decision.requiresRadiography
+        });
+      }
+    }
+
+    return this.persist(state, nextStep, { ...draft, intake, eligibility: decision, caseId }, message, true);
+  }
+
+  private async handleConfirmation(state: ConversationState, text: string): Promise<SchedulingReply> {
+    if (!['confirm', 'yes', 'book'].includes(text.toLowerCase())) {
+      return this.persist(state, state.step, state.data, 'Reply confirm to book this appointment, or choose another slot.', false);
+    }
+
+    const draft = this.draft(state);
+    if (!draft.locationId || !draft.date || !draft.slot || !draft.intake) {
+      return this.persist(state, 'scheduling.location', {}, 'The booking draft is incomplete. Choose a location: Surco or VMT.', false);
+    }
+
+    const patient = toPatientIntake(draft.intake);
+    let booking: BookingResult;
+
+    if (this.availability) {
+      booking = await this.availability.confirmBooking({
+        telegramUserId: state.telegramUserId,
+        locationId: draft.locationId,
+        date: draft.date,
+        slot: draft.slot,
+        intake: patient
+      });
+    } else {
+      const startsAt = new Date(`${draft.date}T${draft.slot}:00-05:00`);
+      booking = { booked: true, caseId: 0, googleEventId: 'not-configured', startsAt, endsAt: new Date(startsAt.getTime() + 30 * 60_000) };
+    }
+
+    if (!booking.booked) {
+      return this.persist(state, 'scheduling.slot', { ...draft, slot: undefined }, 'That slot is no longer available. Please choose another slot.', false);
+    }
+
+    await this.notifications?.appointmentConfirmed({
+      caseId: booking.caseId,
+      patient,
+      locationId: draft.locationId,
+      startsAt: booking.startsAt,
+      googleEventId: booking.googleEventId
+    });
+
+    return this.persist(state, 'idle', {}, 'Your appointment is confirmed. The team has been notified.', true);
   }
 
   private draft(state: ConversationState): SchedulingDraft {
@@ -259,7 +327,7 @@ export class SchedulingFlow {
         : 'Thank you. The case needs staff review before scheduling.';
     }
 
-    return 'Thank you. The intake is complete and eligible. Calendar confirmation will be handled before booking.';
+    return 'Thank you. The intake is complete and eligible. Reply confirm to book this appointment.';
   }
 
   private async persist(

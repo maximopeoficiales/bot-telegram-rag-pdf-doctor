@@ -51,11 +51,11 @@ Chain strategy: feature-branch-chain
 
 ## Phase 4: Calendar, Notifications, and Verification
 
-- [ ] 4.1 Implement Google adapter `src/adapters/google-calendar/google-calendar.adapter.ts` for freeBusy + events.insert using OAuth owner account (requires Google credentials/scopes).
-- [ ] 4.2 Add availability service in `src/application/calendar/availability.service.ts` to enforce Surco/VMT windows and recheck slot before confirmation.
-- [ ] 4.3 Implement notification flow `src/application/notifications/` + `src/adapters/telegram/staff-group.client.ts` for confirmed appointments, file uploads, and pending-review cases.
-- [ ] 4.4 Add integration tests `tests/integration/scheduling-calendar.spec.ts` and `tests/integration/notifications.spec.ts` using Vitest + Testcontainers or Docker Compose Postgres.
-- [ ] 4.5 Add e2e webhook tests `tests/e2e/telegram-bot-mvp.spec.ts` covering full booking, review hold (no event), and staff-mediated reply prefix.
+- [x] 4.1 Implement Google adapter `src/adapters/google-calendar/google-calendar.adapter.ts` for freeBusy + events.insert using OAuth owner account (requires Google credentials/scopes).
+- [x] 4.2 Add availability service in `src/application/calendar/availability.service.ts` to enforce Surco/VMT windows and recheck slot before confirmation.
+- [x] 4.3 Implement notification flow `src/application/notifications/` + `src/adapters/telegram/staff-group.client.ts` for confirmed appointments, file uploads, and pending-review cases.
+- [x] 4.4 Add integration tests `tests/integration/scheduling-calendar.spec.ts` and `tests/integration/notifications.spec.ts` using Vitest + Testcontainers or Docker Compose Postgres.
+- [x] 4.5 Add e2e webhook tests `tests/e2e/telegram-bot-mvp.spec.ts` covering full booking, review hold (no event), and staff-mediated reply prefix.
 
 ## Phase 5: Cleanup and Delivery Readiness
 
