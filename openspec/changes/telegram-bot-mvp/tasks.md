@@ -43,11 +43,11 @@ Chain strategy: feature-branch-chain
 
 ## Phase 3: Knowledge, QA, and Staff Operations
 
-- [ ] 3.1 Implement `VectorStorePort` in `src/ports/vector-store.port.ts` with Postgres pgvector adapter `src/adapters/vector-store/pgvector-store.ts`.
-- [ ] 3.2 Build staff ingestion pipeline in `src/application/knowledge/` (parse/chunk/embed/upsert) and enforce patient-file isolation in `src/domain/cases/`.
-- [ ] 3.3 Implement RAG QA flow in `src/application/qa/` with read-only boundary: no eligibility/calendar/rule mutations.
-- [ ] 3.4 Implement staff management in `src/application/staff/` for allowlist ops, schedule/location config, Gemini rule extraction drafts requiring approval (requires Gemini credentials).
-- [ ] 3.5 Add tests `tests/unit/knowledge/*.spec.ts` and `tests/unit/qa/*.spec.ts` for scenarios: unauthorized upload rejected, patient files excluded, insufficient knowledge safe response.
+- [x] 3.1 Implement `VectorStorePort` in `src/ports/vector-store.port.ts` with Postgres pgvector adapter `src/adapters/vector-store/pgvector-store.ts`.
+- [x] 3.2 Build staff ingestion pipeline in `src/application/knowledge/` (parse/chunk/embed/upsert) and enforce patient-file isolation in `src/domain/cases/`.
+- [x] 3.3 Implement RAG QA flow in `src/application/qa/` with read-only boundary: no eligibility/calendar/rule mutations.
+- [x] 3.4 Implement staff management in `src/application/staff/` for allowlist ops, schedule/location config, Gemini rule extraction drafts requiring approval (requires Gemini credentials).
+- [x] 3.5 Add tests `tests/unit/knowledge/*.spec.ts` and `tests/unit/qa/*.spec.ts` for scenarios: unauthorized upload rejected, patient files excluded, insufficient knowledge safe response.
 
 ## Phase 4: Calendar, Notifications, and Verification
 
