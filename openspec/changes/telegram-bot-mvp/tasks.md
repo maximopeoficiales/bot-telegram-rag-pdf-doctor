@@ -35,11 +35,11 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2: Core Scheduling and Telegram Delivery
 
-- [ ] 2.1 Build `src/delivery/telegram/webhook.ts` and `src/delivery/telegram/router.ts` for update routing, role resolution, and unauthorized staff denial.
-- [ ] 2.2 Implement conversation persistence in `src/domain/conversation/` + `src/adapters/db/conversation-state.repository.ts` for state continuity and invalid-input clarification.
-- [ ] 2.3 Implement scheduling flow in `src/application/scheduling/` covering location → date → slot → intake capture with required fields.
-- [ ] 2.4 Implement eligibility engine in `src/domain/eligibility/` using DB/config rule definitions (age reject >60, review/radiography outcomes, no hard-coded policy text).
-- [ ] 2.5 Add unit tests `tests/unit/scheduling/*.spec.ts` and `tests/unit/eligibility/*.spec.ts` for spec scenarios: missing intake blocks booking, age 61 rejection, radiography pending review.
+- [x] 2.1 Build `src/delivery/telegram/webhook.ts` and `src/delivery/telegram/router.ts` for update routing, role resolution, and unauthorized staff denial.
+- [x] 2.2 Implement conversation persistence in `src/domain/conversation/` + `src/adapters/db/conversation-state.repository.ts` for state continuity and invalid-input clarification.
+- [x] 2.3 Implement scheduling flow in `src/application/scheduling/` covering location → date → slot → intake capture with required fields.
+- [x] 2.4 Implement eligibility engine in `src/domain/eligibility/` using DB/config rule definitions (age reject >60, review/radiography outcomes, no hard-coded policy text).
+- [x] 2.5 Add unit tests `tests/unit/scheduling/*.spec.ts` and `tests/unit/eligibility/*.spec.ts` for spec scenarios: missing intake blocks booking, age 61 rejection, radiography pending review.
 
 ## Phase 3: Knowledge, QA, and Staff Operations
 

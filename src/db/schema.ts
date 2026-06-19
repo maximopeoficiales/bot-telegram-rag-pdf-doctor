@@ -16,6 +16,14 @@ export const staffAllowlist = pgTable('staff_allowlist', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 });
 
+export const conversationStates = pgTable('conversation_states', {
+  telegramUserId: varchar('telegram_user_id', { length: 64 }).primaryKey(),
+  flow: varchar('flow', { length: 32 }).notNull().default('none'),
+  step: varchar('step', { length: 64 }).notNull().default('idle'),
+  data: jsonb('data').notNull().default(sql`'{}'::jsonb`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
 export const locations = pgTable('locations', {
   id: varchar('id', { length: 32 }).primaryKey(),
   name: text('name').notNull(),
