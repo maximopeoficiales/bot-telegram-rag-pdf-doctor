@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.*
+coverage
+openspec
+.atl
+.DS_Store
+npm-debug.log*
