@@ -1,10 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Env } from './config/env.js';
-import {
-  handleTelegramWebhookRequest,
-  type TelegramClientPort
-} from './delivery/telegram/webhook.js';
-import type { TelegramUpdateRouter } from './delivery/telegram/router.js';
+import { processTelegramWebhook, type TelegramClientPort } from './delivery/telegram/webhook.js';
+import type { TelegramUpdate, TelegramUpdateRouter } from './delivery/telegram/router.js';
 
 export function buildServer(
   router: TelegramUpdateRouter,
@@ -19,13 +16,9 @@ export function buildServer(
     return reply.status(200).send({ ok: true, service: 'telegram-bot-mvp' });
   });
 
-  fastify.post('/webhook', async (request, reply) => {
-    await handleTelegramWebhookRequest(
-      request.raw,
-      reply.raw,
-      router,
-      telegramClient
-    );
+  fastify.post<{ Body: TelegramUpdate }>('/webhook', async (request, reply) => {
+    await processTelegramWebhook(request.body, router, telegramClient);
+    return reply.status(200).send({ ok: true });
   });
 
   return fastify;
