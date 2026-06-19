@@ -59,5 +59,5 @@ Chain strategy: feature-branch-chain
 
 ## Phase 5: Cleanup and Delivery Readiness
 
-- [ ] 5.1 Document setup and runbook in `README.md` (local Docker flow, Supabase `DATABASE_URL`, migration commands, OAuth setup).
-- [ ] 5.2 Add `docs/release/telegram-bot-mvp-checklist.md` with PR chain boundaries, env checklist, and rollback steps.
+- [x] 5.1 Document setup and runbook in `README.md` (local Docker flow, Supabase `DATABASE_URL`, migration commands, OAuth setup).
+- [x] 5.2 Add `docs/release/telegram-bot-mvp-checklist.md` with PR chain boundaries, env checklist, and rollback steps.
