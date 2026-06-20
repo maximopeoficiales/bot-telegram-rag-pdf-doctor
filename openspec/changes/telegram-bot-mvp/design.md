@@ -2,7 +2,7 @@
 
 ## Technical Approach
 
-Build a Dockerized TypeScript Node backend with Telegram as the only MVP delivery surface. The workspace is greenfield: only OpenSpec/ATL artifacts exist; there are no source files, manifests, package manager, test runner, or source patterns to follow yet. Use clean/hexagonal/domain-first structure: Telegram, Gemini, Google Calendar, PostgreSQL/pgvector, and Telegram Bot API live behind adapters; scheduling, eligibility, knowledge, and staff workflows stay in application/domain code.
+Dockerized TypeScript Node backend with Telegram as the primary delivery surface. Clean/hexagonal architecture: Telegram, Gemini, Google Calendar, PostgreSQL/pgvector, and Telegram Bot API live behind adapters; scheduling, eligibility, knowledge, and staff workflows stay in application/domain code. Routing uses Chain of Responsibility — adding a command requires one new handler class and one `registerHandler()` call, with no changes to the router.
 
 ## Architecture Decisions
 
@@ -10,87 +10,153 @@ Build a Dockerized TypeScript Node backend with Telegram as the only MVP deliver
 |---|---|---|---|
 | Runtime | Node.js + TypeScript backend | Next.js/web-first | MVP is Telegram-first and needs webhook/use-case orchestration, not UI. |
 | Architecture | Clean/hexagonal modules | Framework-centric modules | Keeps domain rules independent from Telegram/Gemini/Calendar APIs. |
+| Routing | Chain of Responsibility (`MessageRouter`) | Single if-else router | Open/Closed Principle — new commands don't require modifying existing router code. |
+| Messaging abstraction | `MessagingPort` interface | Direct Telegram SDK calls in handlers | Allows swapping Telegram → WhatsApp without touching domain or application layers. |
+| Commands | `BotCommand` enum | Hardcoded string literals | Single source of truth; typos caught at compile time. |
 | Environments | Dockerized app everywhere; local Docker Compose with app + pgvector Postgres; production app container + Supabase Postgres | Local native Node/Postgres; managed app platform assumptions | Same app artifact across environments while `DATABASE_URL` selects local or Supabase DB. |
-| Persistence | PostgreSQL + Drizzle + pgvector | In-memory/vector SaaS | One durable store for conversations, cases, rules, events, and embeddings; Drizzle migrations run against local Postgres and Supabase. |
+| Local dev image | `Dockerfile.dev` (all deps) vs `Dockerfile` (prod, omit dev) | Single Dockerfile with build args | Explicit separation avoids `tsx not found` errors caused by cached node_modules volumes. |
+| Persistence | PostgreSQL + Drizzle + pgvector | In-memory/vector SaaS | One durable store for conversations, cases, rules, events, and embeddings. |
 | AI provider | Gemini ports for embeddings and generation | Direct SDK calls in domain | Swappable adapters and testable use cases. |
 | Calendar truth | Live Google Calendar free-busy + event creation | Cached slots only | Prevents double booking; final confirmation always rechecks. |
-| Authorization | Telegram user ID allowlist | Passwords/admin panel | Fits bot-first MVP and supports staff/private group flows. |
-| Rules | Code engine + DB/config rule definitions | Hard-coded policy branches | Business policy can evolve; Gemini extraction remains inactive until staff approval. |
-| RAG boundary | Staff docs only in vector index | Index every uploaded file | Patient files attach to cases only and never contaminate general QA. |
+| Authorization | Telegram user ID allowlist (`StaticStaffAllowlistStore`) | Passwords/admin panel | Fits bot-first MVP and supports staff/private group flows. |
+| Language | All user-facing messages in Spanish | Bilingual | Target audience is Spanish-speaking patients. |
+
+## Component Map
+
+```
+src/
+├── config/
+│   └── env.ts                          Zod-validated env with all required vars
+├── ports/
+│   ├── messaging.port.ts               MessagingPort (sendMessage)
+│   ├── calendar.port.ts                CalendarPort (freeBusy, createEvent)
+│   ├── ai.port.ts                      EmbeddingPort, GenerationPort
+│   └── vector-store.port.ts            VectorStorePort
+├── adapters/
+│   ├── messaging/
+│   │   ├── telegram-messaging.adapter.ts    ✅ active
+│   │   └── whatsapp-messaging.adapter.ts    🔲 placeholder
+│   ├── google-calendar/
+│   │   └── google-calendar.adapter.ts       ✅ active (OAuth refresh token)
+│   ├── db/
+│   │   └── conversation-state.repository.ts ✅ active
+│   └── vector-store/                        ✅ implemented, pending wire-up
+├── domain/
+│   ├── commands/
+│   │   ├── bot-commands.ts             BotCommand enum, MessageType enum
+│   │   ├── command-handler.interface.ts
+│   │   ├── handler-context.ts
+│   │   ├── parsed-message.ts
+│   │   └── handlers/
+│   │       ├── authorization-guard.handler.ts
+│   │       ├── reply-command.handler.ts
+│   │       ├── file-upload.handler.ts
+│   │       ├── staff-command.handler.ts
+│   │       ├── start-command.handler.ts
+│   │       ├── schedule-command.handler.ts
+│   │       └── text-message.handler.ts
+│   ├── conversation/
+│   │   └── conversation-state.ts
+│   └── eligibility/
+│       └── eligibility-engine.ts
+├── application/
+│   ├── scheduling/
+│   │   └── scheduling-flow.ts          location→date→slot→intake→confirm
+│   ├── calendar/
+│   │   └── availability.service.ts     freeBusy + confirmBooking
+│   ├── notifications/
+│   │   ├── notification.service.ts
+│   │   └── staff-reply.service.ts
+│   ├── knowledge/                      ✅ implemented, pending Gemini wire-up
+│   ├── qa/
+│   │   └── rag-qa-flow.ts              ✅ implemented, pending Gemini wire-up
+│   └── staff/                          ✅ implemented
+├── delivery/
+│   ├── message-router/
+│   │   ├── message-parser.ts           TelegramUpdate → ParsedMessage
+│   │   └── message-router.ts           Chain of Responsibility + StaticStaffAllowlistStore
+│   └── telegram/
+│       └── webhook.ts                  processTelegramWebhook
+└── main.ts                             Wires all adapters and starts Fastify server
+```
 
 ## Data Flow
 
-Telegram delivery and scheduling:
+### Telegram delivery and scheduling
 
 ```text
-Telegram webhook -> UpdateRouter -> RoleResolver -> ConversationStateStore
-                     |-> PatientUseCases -> SchedulingUseCase -> EligibilityEngine
-                                             | pass -> Google CalendarAdapter
-                                             | review -> CaseReview + StaffNotify
-                     |-> StaffUseCases -> Ingestion/Rules/Replies/Notifications
+POST /webhook/telegram
+  → MessageParser (TelegramUpdate → ParsedMessage)
+  → MessageRouter (chain iteration)
+      → AuthorizationGuard       denies unauthorized staff commands
+      → ReplyCommandHandler      /reply <caseId> <msg> → StaffReplyService
+      → FileUploadHandler        document/photo/audio → NotificationService
+      → StaffCommandHandler      authorized staff commands
+      → StartCommandHandler      /start
+      → ScheduleCommandHandler   /schedule → SchedulingFlow
+      → TextMessageHandler       plain text → SchedulingFlow (active step)
+
+SchedulingFlow
+  → location → date → AvailabilityService.availableSlots (freeBusy)
+  → intake → EligibilityEngine.evaluate
+  → confirm → AvailabilityService.confirmBooking
+      → CalendarPort.freeBusy (recheck)
+      → CalendarPort.createEvent
+      → NotificationService.appointmentConfirmed (staff group)
 ```
 
-RAG pipeline stages and Gemini external calls:
+### RAG pipeline (pending Gemini adapter wire-up)
 
 ```text
-Staff PDF/text -> Parse -> Chunk -> GeminiEmbeddingAdapter -> pgvector upsert
-Patient question -> Retrieve(pgvector) -> PromptBuilder -> GeminiGenerationAdapter -> Telegram reply
-Patient file/audio/image/PDF -> PatientCaseFile only -> StaffNotify (no RAG index)
+Staff PDF/text → Parse → Chunk → EmbeddingPort → pgvector upsert
+Patient question → VectorStorePort.search → GenerationPort.answer → Telegram reply
+Patient file → PatientCaseFile only (never written to knowledge_documents)
 ```
 
-Google Calendar sequence:
+### Google Calendar sequence
 
 ```text
-Patient selects slot -> AvailabilityService -> Google freeBusy
-Patient confirms + eligibility pass -> Google freeBusy recheck -> Google events.insert
-Review-required case -> save pending review -> notify staff -> no Calendar event until approval
+Patient selects slot → AvailabilityService.availableSlots → CalendarPort.freeBusy
+Patient confirms + eligibility pass → CalendarPort.freeBusy recheck → CalendarPort.createEvent
+Review-required case → save pending_review → notify staff → no Calendar event until approval
 ```
 
-Environment/deployment flow:
+### Environment/deployment flow
 
 ```text
-Local: docker-compose.local.yml -> app container -> postgres(pgvector)
-Prod:  Dockerized app -> Supabase Postgres(pgvector enabled by migration/extension)
-Both:  Drizzle migrations -> DATABASE_URL-specific target
+Local:  docker-compose.local.yml → Dockerfile.dev (all deps) → app + postgres(pgvector)
+Prod:   Dockerfile (prod, omit dev) → Dockerized app → Supabase Postgres(pgvector)
+Both:   Drizzle migrations → DATABASE_URL-specific target
+Tunnel: cloudflared tunnel --url http://localhost:3000 → trycloudflare.com URL → setWebhook
 ```
-
-## File Changes
-
-| File | Action | Description |
-|---|---|---|
-| `package.json`, `tsconfig.json` | Create | TypeScript Node project, scripts, Drizzle/Vitest setup. |
-| `Dockerfile` | Create | Production-ready Node app image used by local compose and deployment. |
-| `docker-compose.local.yml` | Create | Local app + PostgreSQL container with pgvector enabled. |
-| `.env.example` | Create | Documents `DATABASE_URL` per environment plus Telegram, Gemini, Google, staff group config. |
-| `drizzle.config.ts` | Create | Reads `DATABASE_URL` so migrations target local Postgres or Supabase. |
-| `src/main.ts`, `src/config/env.ts` | Create | Bootstrap, webhook server, validated environment config. |
-| `src/delivery/telegram/**` | Create | Webhook endpoint, update router, conversation state handling. |
-| `src/application/**`, `src/domain/**`, `src/ports/**` | Create | Use cases, entities, eligibility engine, ports, invariants. |
-| `src/adapters/gemini/**`, `src/adapters/google-calendar/**`, `src/adapters/telegram/**` | Create | External service adapters. |
-| `src/db/schema.ts`, `src/db/migrations/**` | Create | Drizzle schema and migrations, including `CREATE EXTENSION IF NOT EXISTS vector`. |
-| `tests/**` | Create | Unit/integration/e2e tests once stack initializes. |
 
 ## Interfaces / Contracts
 
-Ports: `CalendarPort.freeBusy()`, `CalendarPort.createEvent()`, `EmbeddingPort.embedChunks()`, `GenerationPort.answer()`/`extractRules()`, `NotificationPort.notifyStaff()`, repositories for conversations, users, cases, rules, documents, embeddings.
+Ports: `MessagingPort.sendMessage()`, `CalendarPort.freeBusy()`, `CalendarPort.createEvent()`, `EmbeddingPort.embedChunks()`, `GenerationPort.answer()`/`extractRules()`, repositories for conversations, users, cases, rules, documents, embeddings.
 
 Persistence entities: `telegram_users`, `staff_allowlist`, `conversation_states`, `locations`, `schedules`, `patient_cases`, `case_files`, `rule_definitions`, `rule_drafts`, `appointments`, `knowledge_documents`, `knowledge_chunks(vector)`, `staff_notifications`, `reply_threads`.
 
-Key invariants: only allowlisted Telegram IDs perform staff operations; pending-review cases never create Calendar events; patient files are never written to `knowledge_documents`/`knowledge_chunks`; migrations must be environment-neutral and driven by `DATABASE_URL`.
+Key invariants:
+- Only allowlisted Telegram IDs perform staff operations
+- Pending-review cases never create Calendar events
+- Patient files are never written to `knowledge_documents`/`knowledge_chunks`
+- Migrations must be environment-neutral and driven by `DATABASE_URL`
+- All user-facing messages are in Spanish
 
 ## Testing Strategy
 
 | Layer | What to Test | Approach |
 |---|---|---|
-| Unit | Eligibility engine, state transitions, RAG boundary guards | Vitest after stack init; ports mocked. |
-| Integration | Drizzle migrations/repositories, pgvector queries, env config | Run against Docker Compose pgvector Postgres; add optional Supabase migration smoke test with protected credentials. |
-| E2E | Telegram scheduling, staff approval, patient upload flows | Webhook fixture tests with mocked Telegram API and fake providers. |
+| Unit | Eligibility engine, state transitions, RAG boundary guards, handler routing | Vitest; ports mocked. |
+| Integration | Drizzle migrations/repositories, scheduling+calendar flow, notifications | Run against Docker Compose pgvector Postgres. |
+| E2E | Telegram scheduling, review hold, staff-mediated reply prefix | Webhook fixture tests with mocked Telegram API and fake providers. |
 
-## Migration / Rollout
-
-Greenfield rollout: initialize TypeScript project, add Dockerfile/Compose/env template, create Drizzle schema/migrations including pgvector extension, verify migrations locally, then run the same migrations against Supabase with production `DATABASE_URL`. Local Postgres image must include pgvector; production Supabase project must enable pgvector via migration/extension before vector tables/indexes are used. No existing data migration required.
+Current status: 27 tests passing, 1 skipped (DB integration requires live DB flag).
 
 ## Open Questions
 
-- [ ] Exact Google OAuth/service-account ownership model for the shared practice calendar.
-- [ ] Final bilingual copy policy for patient-facing Telegram messages.
+- [x] ~~Exact Google OAuth/service-account ownership model for the shared practice calendar.~~ Resolved: personal Google account OAuth with refresh token.
+- [x] ~~Final bilingual copy policy for patient-facing Telegram messages.~~ Resolved: Spanish only.
+- [ ] Gemini adapter implementation for RAG Q&A activation.
+- [ ] Production deployment guide (Supabase + Dockerfile + webhook URL).
+- [ ] WhatsApp migration plan when needed (adapter placeholder exists).

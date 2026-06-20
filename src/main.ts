@@ -4,8 +4,10 @@ import { env } from './config/env.js';
 import { buildServer, startServer } from './server.js';
 import { DbConversationStateRepository } from './adapters/db/conversation-state.repository.js';
 import { TelegramMessagingAdapter } from './adapters/messaging/telegram-messaging.adapter.js';
+import { GoogleCalendarAdapter } from './adapters/google-calendar/google-calendar.adapter.js';
 import { MessageRouter } from './delivery/message-router/message-router.js';
 import { StaticStaffAllowlistStore } from './delivery/message-router/message-router.js';
+import { AvailabilityService } from './application/calendar/availability.service.js';
 import { SchedulingFlow } from './application/scheduling/scheduling-flow.js';
 import { AuthorizationGuard } from './domain/commands/handlers/authorization-guard.handler.js';
 import { ReplyCommandHandler } from './domain/commands/handlers/reply-command.handler.js';
@@ -26,9 +28,16 @@ async function main() {
     env.TELEGRAM_STAFF_GROUP_CHAT_ID.split(',').map((id) => id.trim())
   );
   const messaging = new TelegramMessagingAdapter(env.TELEGRAM_BOT_TOKEN);
+  const calendar = new GoogleCalendarAdapter({
+    calendarId: env.GOOGLE_CALENDAR_ID,
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    refreshToken: env.GOOGLE_REFRESH_TOKEN
+  });
 
   // Application services
-  const schedulingFlow = new SchedulingFlow(conversations);
+  const availability = new AvailabilityService(calendar);
+  const schedulingFlow = new SchedulingFlow(conversations, undefined, availability);
 
   // Router — handlers registered in priority order
   const router = new MessageRouter(staffAllowlist, conversations, schedulingFlow, messaging)
