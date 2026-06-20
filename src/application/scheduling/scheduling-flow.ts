@@ -217,7 +217,7 @@ export class SchedulingFlow {
   }
 
   private async handleConfirmation(state: ConversationState, text: string): Promise<SchedulingReply> {
-    if (!['confirm', 'yes', 'book'].includes(text.toLowerCase())) {
+    if (!['confirm', 'yes', 'book', 'confirmar', 'sí', 'si', 'reservar'].includes(text.toLowerCase())) {
       return this.persist(state, state.step, state.data, 'Responde confirmar para reservar esta cita, o elige otro horario.', false);
     }
 

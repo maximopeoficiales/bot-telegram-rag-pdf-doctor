@@ -16,7 +16,7 @@ export function buildServer(
     return reply.status(200).send({ ok: true, service: 'telegram-bot-mvp' });
   });
 
-  fastify.post<{ Body: TelegramUpdate }>('/webhook', async (request, reply) => {
+  fastify.post<{ Body: TelegramUpdate }>('/webhook/telegram', async (request, reply) => {
     await processTelegramWebhook(request.body, router);
     return reply.status(200).send({ ok: true });
   });
