@@ -1,19 +1,9 @@
-import { TelegramUpdateRouter, type TelegramRouteResult, type TelegramUpdate } from './router.js';
-
-export type TelegramClientPort = {
-  sendMessage(chatId: string, text: string): Promise<void>;
-};
+import type { MessageRouter } from '../message-router/message-router.js';
+import type { TelegramUpdate } from '../message-router/message-parser.js';
 
 export async function processTelegramWebhook(
   update: TelegramUpdate,
-  router: TelegramUpdateRouter,
-  telegramClient: TelegramClientPort
-): Promise<TelegramRouteResult> {
-  const result = await router.route(update);
-
-  for (const message of result.messages) {
-    await telegramClient.sendMessage(message.chatId, message.text);
-  }
-
-  return result;
+  router: MessageRouter
+): Promise<void> {
+  await router.route(update);
 }

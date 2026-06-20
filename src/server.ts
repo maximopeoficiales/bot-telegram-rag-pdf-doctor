@@ -1,11 +1,11 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Env } from './config/env.js';
-import { processTelegramWebhook, type TelegramClientPort } from './delivery/telegram/webhook.js';
-import type { TelegramUpdate, TelegramUpdateRouter } from './delivery/telegram/router.js';
+import { processTelegramWebhook } from './delivery/telegram/webhook.js';
+import type { MessageRouter } from './delivery/message-router/message-router.js';
+import type { TelegramUpdate } from './delivery/message-router/message-parser.js';
 
 export function buildServer(
-  router: TelegramUpdateRouter,
-  telegramClient: TelegramClientPort,
+  router: MessageRouter,
   env: Pick<Env, 'NODE_ENV'>
 ): FastifyInstance {
   const fastify = Fastify({
@@ -17,7 +17,7 @@ export function buildServer(
   });
 
   fastify.post<{ Body: TelegramUpdate }>('/webhook', async (request, reply) => {
-    await processTelegramWebhook(request.body, router, telegramClient);
+    await processTelegramWebhook(request.body, router);
     return reply.status(200).send({ ok: true });
   });
 
