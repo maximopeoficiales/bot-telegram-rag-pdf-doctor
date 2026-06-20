@@ -11,7 +11,7 @@ export class StartCommandHandler implements CommandHandler {
   async handle(_message: ParsedMessage, context: HandlerContext): Promise<HandlerResult> {
     await context.messaging.sendMessage(
       context.chatId,
-      'Welcome. Send /schedule to start appointment scheduling.'
+      'Bienvenido. Envía /schedule para iniciar el agendamiento de tu cita.'
     );
 
     return { handled: true };

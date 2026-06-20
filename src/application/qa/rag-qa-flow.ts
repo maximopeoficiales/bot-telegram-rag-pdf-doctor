@@ -19,7 +19,7 @@ export class RagQaFlow {
     if (schedulingIntent.test(question)) {
       return {
         kind: 'redirect_to_scheduling',
-        text: 'I can share general information here. To make scheduling or eligibility decisions, please start the scheduling flow with /schedule.'
+        text: 'Puedo compartir información general aquí. Para agendar una cita o consultar elegibilidad, inicia el flujo con /schedule.'
       };
     }
 
@@ -29,7 +29,7 @@ export class RagQaFlow {
     if (results.length === 0) {
       return {
         kind: 'insufficient_knowledge',
-        text: 'I cannot answer that from the approved practice information available right now.'
+        text: 'No tengo información aprobada para responder esa consulta en este momento.'
       };
     }
 

@@ -61,7 +61,7 @@ describe('RagQaFlow', () => {
     const answer = await qa.answer('What does the clinic say about this rare topic?');
 
     expect(answer.kind).toBe('insufficient_knowledge');
-    expect(answer.text).toContain('cannot answer');
+    expect(answer.text).toContain('No tengo información');
   });
 
   it('redirects booking decisions to scheduling without making eligibility decisions', async () => {

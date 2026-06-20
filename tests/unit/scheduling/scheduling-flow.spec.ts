@@ -23,7 +23,7 @@ describe('SchedulingFlow', () => {
     const state = await store.get('100');
 
     expect(response.advanced).toBe(false);
-    expect(response.text).toContain('Surco or VMT');
+    expect(response.text).toContain('Surco o VMT');
     expect(state?.step).toBe('scheduling.location');
   });
 
@@ -70,6 +70,6 @@ describe('SchedulingFlow', () => {
     const response = await flow.handleMessage('300', 'appointment');
 
     expect(response.state.step).toBe('scheduling.pending_review');
-    expect(response.text).toContain('upload the radiography');
+    expect(response.text).toContain('radiografía');
   });
 });

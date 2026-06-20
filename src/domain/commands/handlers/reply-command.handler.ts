@@ -10,7 +10,7 @@ export class ReplyCommandHandler implements CommandHandler {
 
   async handle(message: ParsedMessage, context: HandlerContext): Promise<HandlerResult> {
     if (!context.staffReplies) {
-      await context.messaging.sendMessage(context.chatId, 'Reply service not available.');
+      await context.messaging.sendMessage(context.chatId, 'El servicio de respuesta no está disponible.');
       return { handled: true };
     }
 
@@ -22,7 +22,7 @@ export class ReplyCommandHandler implements CommandHandler {
 
     await context.messaging.sendMessage(
       context.chatId,
-      delivered ? 'Reply sent to the patient.' : 'No patient thread found for that case.'
+      delivered ? 'Respuesta enviada al paciente.' : 'No se encontró un hilo para ese caso.'
     );
 
     return { handled: true };

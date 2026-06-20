@@ -16,7 +16,7 @@ export class StaffReplyService {
     const thread = await this.replyThreads.findByCaseId(input.caseId);
     if (!thread) return false;
 
-    await this.patientMessenger.sendMessage(thread.patientTelegramUserId, `The team replied: ${input.message}`);
+    await this.patientMessenger.sendMessage(thread.patientTelegramUserId, `El equipo respondió: ${input.message}`);
     return true;
   }
 }

@@ -18,7 +18,7 @@ export class StaffCommandHandler implements CommandHandler {
     // AuthorizationGuard already passed — user is authorized here
     await context.messaging.sendMessage(
       context.chatId,
-      `Command ${message.command} received. Staff workflows will be available soon.`
+      `Comando ${message.command} recibido. Las funciones de staff estarán disponibles pronto.`
     );
 
     return { handled: true };

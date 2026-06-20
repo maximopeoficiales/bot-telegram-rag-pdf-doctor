@@ -22,7 +22,7 @@ export class AuthorizationGuard implements CommandHandler {
     if (!context.isAuthorized) {
       await context.messaging.sendMessage(
         context.chatId,
-        'This staff action is only available to authorized practice users.'
+        'Esta acción es solo para usuarios autorizados del consultorio.'
       );
       return { handled: true, denied: true };
     }

@@ -33,7 +33,7 @@ describe('telegram bot MVP e2e', () => {
 
     expect(createdEvents).toEqual(['Appointment - Ada Patient']);
     expect(staffMessages.some((m) => m.includes('New appointment confirmed'))).toBe(true);
-    expect(sentMessages.at(-1)).toContain('appointment is confirmed');
+    expect(sentMessages.at(-1)).toContain('cita está confirmada');
   });
 
   it('holds radiography review cases without creating calendar events', async () => {
@@ -48,7 +48,7 @@ describe('telegram bot MVP e2e', () => {
 
     expect(createdEvents).toEqual([]);
     expect(staffMessages.some((m) => m.includes('pending staff review'))).toBe(true);
-    expect(sentMessages.at(-1)).toContain('upload the radiography');
+    expect(sentMessages.at(-1)).toContain('radiografía');
   });
 
   it('sends staff-mediated replies with the team prefix', async () => {
@@ -57,7 +57,7 @@ describe('telegram bot MVP e2e', () => {
 
     await send(router, '/reply 99 Please bring your radiography.', '900');
 
-    expect(patientMessages).toEqual(['The team replied: Please bring your radiography.']);
+    expect(patientMessages).toEqual(['El equipo respondió: Please bring your radiography.']);
   });
 });
 

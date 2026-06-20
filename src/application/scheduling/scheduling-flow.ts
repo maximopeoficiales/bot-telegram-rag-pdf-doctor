@@ -100,7 +100,7 @@ export class SchedulingFlow {
     const normalized = text.trim();
 
     if (normalized === '/schedule' || existing.step === 'idle') {
-      return this.persist(existing, 'scheduling.location', {}, 'Choose a location: Surco or VMT.', true);
+      return this.persist(existing, 'scheduling.location', {}, 'Elige una sede: Surco o VMT.', true);
     }
 
     switch (existing.step) {
@@ -115,28 +115,28 @@ export class SchedulingFlow {
       case 'scheduling.ready_to_confirm':
         return this.handleConfirmation(existing, normalized);
       default:
-        return this.persist(existing, existing.step, existing.data, 'I need a valid scheduling input to continue.', false);
+        return this.persist(existing, existing.step, existing.data, 'Necesito una respuesta válida para continuar.', false);
     }
   }
 
   private async handleLocation(state: ConversationState, text: string): Promise<SchedulingReply> {
     const locationId = this.parseLocation(text);
     if (!locationId) {
-      return this.persist(state, state.step, state.data, 'Please choose either Surco or VMT.', false);
+      return this.persist(state, state.step, state.data, 'Por favor elige entre Surco o VMT.', false);
     }
 
     return this.persist(
       state,
       'scheduling.date',
       { ...this.draft(state), locationId },
-      'Send the appointment date in YYYY-MM-DD format.',
+      'Envía la fecha de la cita en formato YYYY-MM-DD.',
       true
     );
   }
 
   private async handleDate(state: ConversationState, text: string): Promise<SchedulingReply> {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-      return this.persist(state, state.step, state.data, 'Please send a valid date in YYYY-MM-DD format.', false);
+      return this.persist(state, state.step, state.data, 'Por favor envía una fecha válida en formato YYYY-MM-DD.', false);
     }
 
     const draft = this.draft(state);
@@ -147,7 +147,7 @@ export class SchedulingFlow {
       state,
       'scheduling.slot',
       { ...draft, date: text },
-      `Choose one available 30-minute slot: ${slots.join(', ')}.`,
+      `Elige uno de los horarios disponibles de 30 minutos: ${slots.join(', ')}.`,
       true
     );
   }
@@ -158,14 +158,14 @@ export class SchedulingFlow {
     const slots = availableSlotsForLocation(locationId);
 
     if (!slots.includes(text)) {
-      return this.persist(state, state.step, state.data, `Please choose one of these slots: ${slots.join(', ')}.`, false);
+      return this.persist(state, state.step, state.data, `Por favor elige uno de estos horarios: ${slots.join(', ')}.`, false);
     }
 
     return this.persist(
       state,
       'scheduling.intake',
       { ...draft, slot: text, intake: {}, intakeField: 'fullName' },
-      'Please send the patient full name.',
+      'Por favor envía el nombre completo del paciente.',
       true
     );
   }
@@ -218,12 +218,12 @@ export class SchedulingFlow {
 
   private async handleConfirmation(state: ConversationState, text: string): Promise<SchedulingReply> {
     if (!['confirm', 'yes', 'book'].includes(text.toLowerCase())) {
-      return this.persist(state, state.step, state.data, 'Reply confirm to book this appointment, or choose another slot.', false);
+      return this.persist(state, state.step, state.data, 'Responde confirmar para reservar esta cita, o elige otro horario.', false);
     }
 
     const draft = this.draft(state);
     if (!draft.locationId || !draft.date || !draft.slot || !draft.intake) {
-      return this.persist(state, 'scheduling.location', {}, 'The booking draft is incomplete. Choose a location: Surco or VMT.', false);
+      return this.persist(state, 'scheduling.location', {}, 'El borrador de reserva está incompleto. Elige una sede: Surco o VMT.', false);
     }
 
     const patient = toPatientIntake(draft.intake);
@@ -243,7 +243,7 @@ export class SchedulingFlow {
     }
 
     if (!booking.booked) {
-      return this.persist(state, 'scheduling.slot', { ...draft, slot: undefined }, 'That slot is no longer available. Please choose another slot.', false);
+      return this.persist(state, 'scheduling.slot', { ...draft, slot: undefined }, 'Ese horario ya no está disponible. Por favor elige otro.', false);
     }
 
     await this.notifications?.appointmentConfirmed({
@@ -254,7 +254,7 @@ export class SchedulingFlow {
       googleEventId: booking.googleEventId
     });
 
-    return this.persist(state, 'idle', {}, 'Your appointment is confirmed. The team has been notified.', true);
+    return this.persist(state, 'idle', {}, 'Tu cita está confirmada. El equipo ha sido notificado.', true);
   }
 
   private draft(state: ConversationState): SchedulingDraft {
@@ -298,36 +298,36 @@ export class SchedulingFlow {
 
   private promptFor(field: RequiredIntakeField): string {
     const prompts: Record<RequiredIntakeField, string> = {
-      fullName: 'Please send the patient full name.',
-      dni: 'Please send the patient DNI.',
-      age: 'Please send the patient age as a number.',
-      district: 'Please send the patient district.',
-      painArea: 'Please send the pain area.',
-      painDuration: 'Please send the pain duration.',
-      limitation: 'Please describe the limitation.',
-      gait: 'Please send gait as normal or imbalance.',
-      assistiveDevice: 'Please send the assistive device, or none.',
-      motive: 'Please send the appointment motive/reason.'
+      fullName: 'Por favor envía el nombre completo del paciente.',
+      dni: 'Por favor envía el DNI del paciente.',
+      age: 'Por favor envía la edad del paciente (solo número).',
+      district: 'Por favor envía el distrito del paciente.',
+      painArea: 'Por favor envía la zona de dolor.',
+      painDuration: 'Por favor envía el tiempo de evolución del dolor.',
+      limitation: 'Por favor describe la limitación funcional.',
+      gait: 'Por favor envía la marcha: normal o desequilibrio.',
+      assistiveDevice: 'Por favor envía el dispositivo de apoyo, o ninguno.',
+      motive: 'Por favor envía el motivo de la consulta.'
     };
     return prompts[field];
   }
 
   private clarificationFor(field: RequiredIntakeField): string {
-    return `That value is not valid. ${this.promptFor(field)}`;
+    return `Ese valor no es válido. ${this.promptFor(field)}`;
   }
 
   private messageForDecision(decision: EligibilityDecision): string {
     if (decision.outcome === 'reject') {
-      return 'Thank you. Based on the scheduling rules, the team cannot schedule this appointment through the bot. Please contact the practice for guidance.';
+      return 'Gracias. Según las reglas del consultorio, no es posible agendar esta cita a través del bot. Por favor comunícate directamente con el consultorio.';
     }
 
     if (decision.outcome === 'pending_review') {
       return decision.requiresRadiography
-        ? 'Thank you. Please upload the radiography through Telegram so the staff can review the case before scheduling.'
-        : 'Thank you. The case needs staff review before scheduling.';
+        ? 'Gracias. Por favor sube la radiografía por Telegram para que el equipo pueda revisar el caso antes de agendar.'
+        : 'Gracias. El caso requiere revisión del equipo antes de agendar.';
     }
 
-    return 'Thank you. The intake is complete and eligible. Reply confirm to book this appointment.';
+    return 'Gracias. Los datos están completos y son elegibles. Responde confirmar para reservar esta cita.';
   }
 
   private async persist(

@@ -52,7 +52,7 @@ describe('MessageRouter', () => {
 
     expect(result.denied).toBe(true);
     expect(result.role).toBe('patient');
-    expect(sentMessages[0]).toContain('authorized');
+    expect(sentMessages[0]).toContain('autorizado');
   });
 
   it('accepts authorized staff commands', async () => {
@@ -70,6 +70,6 @@ describe('MessageRouter', () => {
     const result = await router.route(makeUpdate('/schedule', 200));
 
     expect(result.role).toBe('patient');
-    expect(sentMessages[0]).toContain('Choose a location');
+    expect(sentMessages[0]).toContain('sede');
   });
 });

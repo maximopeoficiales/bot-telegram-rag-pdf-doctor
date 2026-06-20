@@ -25,7 +25,7 @@ export class FileUploadHandler implements CommandHandler {
 
     await context.messaging.sendMessage(
       context.chatId,
-      'File received. The team has been notified for review.'
+      'Archivo recibido. El equipo ha sido notificado para su revisión.'
     );
 
     return { handled: true };
