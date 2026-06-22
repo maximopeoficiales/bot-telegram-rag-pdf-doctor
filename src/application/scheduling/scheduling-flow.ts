@@ -103,18 +103,24 @@ export class SchedulingFlow {
     const normalized = text.trim();
 
     if (normalized === '/schedule' || existing.step === 'idle') {
-      return this.persist(existing, 'scheduling.location', {}, 'Elige una sede: Surco o VMT.', true);
+      return this.persist(
+        existing,
+        'scheduling.intake',
+        { intake: {}, intakeField: 'fullName' },
+        'Para agendar tu cita, primero necesito algunos datos. Por favor envía tu nombre completo.',
+        true
+      );
     }
 
     switch (existing.step) {
+      case 'scheduling.intake':
+        return this.handleIntake(existing, normalized);
       case 'scheduling.location':
         return this.handleLocation(existing, normalized);
       case 'scheduling.date':
         return this.handleDate(existing, normalized);
       case 'scheduling.slot':
         return this.handleSlot(existing, normalized);
-      case 'scheduling.intake':
-        return this.handleIntake(existing, normalized);
       case 'scheduling.ready_to_confirm':
         return this.handleConfirmation(existing, normalized);
       default:
@@ -186,9 +192,9 @@ export class SchedulingFlow {
 
     return this.persist(
       state,
-      'scheduling.intake',
-      { ...draft, slot: selectedSlot, intake: {}, intakeField: 'fullName' },
-      'Por favor envía el nombre completo del paciente.',
+      'scheduling.ready_to_confirm',
+      { ...draft, slot: selectedSlot },
+      this.confirmationSummary({ ...draft, slot: selectedSlot }),
       true
     );
   }
@@ -218,8 +224,6 @@ export class SchedulingFlow {
     }
 
     const decision = this.eligibilityEngine.evaluate(toPatientIntake(intake));
-    const nextStep = decision.outcome === 'reject' ? 'scheduling.rejected' : decision.outcome === 'pending_review' ? 'scheduling.pending_review' : 'scheduling.ready_to_confirm';
-    const message = this.messageForDecision(decision);
 
     let caseId: number | undefined;
     if (decision.outcome === 'pending_review') {
@@ -236,7 +240,22 @@ export class SchedulingFlow {
       }
     }
 
-    return this.persist(state, nextStep, { ...draft, intake, eligibility: decision, caseId }, message, true);
+    if (decision.outcome === 'reject') {
+      return this.persist(state, 'scheduling.rejected', { ...draft, intake, eligibility: decision }, this.messageForDecision(decision), true);
+    }
+
+    if (decision.outcome === 'pending_review') {
+      return this.persist(state, 'scheduling.pending_review', { ...draft, intake, eligibility: decision, caseId }, this.messageForDecision(decision), true);
+    }
+
+    // pass → now ask for location
+    return this.persist(
+      state,
+      'scheduling.location',
+      { ...draft, intake, eligibility: decision },
+      '¡Perfecto, podemos atenderte! ¿En qué sede prefieres atenderte: Surco o VMT?',
+      true
+    );
   }
 
   private async handleConfirmation(state: ConversationState, text: string): Promise<SchedulingReply> {
@@ -253,7 +272,13 @@ export class SchedulingFlow {
 
     const draft = this.draft(state);
     if (!draft.locationId || !draft.date || !draft.slot || !draft.intake) {
-      return this.persist(state, 'scheduling.location', {}, 'El borrador de reserva está incompleto. Elige una sede: Surco o VMT.', false);
+      return this.persist(
+        state,
+        'scheduling.intake',
+        { intake: {}, intakeField: 'fullName' },
+        'El borrador de reserva está incompleto. Por favor envía tu nombre completo para comenzar.',
+        false
+      );
     }
 
     const patient = toPatientIntake(draft.intake);
@@ -357,7 +382,23 @@ export class SchedulingFlow {
         : 'Gracias. El caso requiere revisión del equipo antes de agendar.';
     }
 
-    return 'Gracias. Los datos están completos y son elegibles. Responde confirmar para reservar esta cita.';
+    // pass — this message is no longer used (replaced by the location prompt)
+    return '¡Perfecto, podemos atenderte! ¿En qué sede prefieres atenderte: Surco o VMT?';
+  }
+
+  private confirmationSummary(draft: SchedulingDraft): string {
+    const locationLabel = draft.locationId === 'surco' ? 'Surco' : 'VMT';
+    const patientName = draft.intake?.fullName ?? '';
+
+    return [
+      'Resumen de tu cita:',
+      `📍 Sede: ${locationLabel}`,
+      `📅 Fecha: ${draft.date ?? ''}`,
+      `🕐 Horario: ${draft.slot ?? ''}`,
+      `👤 Paciente: ${patientName}`,
+      '',
+      'Responde confirmar para reservar.'
+    ].join('\n');
   }
 
   private async persist(

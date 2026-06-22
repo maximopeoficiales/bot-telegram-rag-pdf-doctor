@@ -18,13 +18,16 @@ describe('SchedulingFlow', () => {
     const store = new InMemoryConversationStateStore();
     const flow = new SchedulingFlow(store);
 
+    // /schedule starts intake — age field rejects non-numbers
     await flow.handleMessage('100', '/schedule');
-    const response = await flow.handleMessage('100', 'Miraflores');
+    await flow.handleMessage('100', 'Ada Patient'); // fullName
+    await flow.handleMessage('100', '12345678');    // dni
+    const response = await flow.handleMessage('100', 'not-a-number'); // age — invalid
     const state = await store.get('100');
 
     expect(response.advanced).toBe(false);
-    expect(response.text).toContain('Surco o VMT');
-    expect(state?.step).toBe('scheduling.location');
+    expect(response.text).toContain('válido');
+    expect(state?.step).toBe('scheduling.intake');
   });
 
   it('resumes from saved date step on the next Telegram update', async () => {
@@ -54,20 +57,18 @@ describe('SchedulingFlow', () => {
     const store = new InMemoryConversationStateStore();
     const flow = new SchedulingFlow(store);
 
+    // New order: intake first, then location/date/slot
     await flow.handleMessage('300', '/schedule');
-    await flow.handleMessage('300', 'Surco');
-    await flow.handleMessage('300', '2026-07-01');
-    await flow.handleMessage('300', '10:00');
-    await flow.handleMessage('300', 'Ada Patient');
-    await flow.handleMessage('300', '12345678');
-    await flow.handleMessage('300', '56');
-    await flow.handleMessage('300', 'Surco');
-    await flow.handleMessage('300', 'back');
-    await flow.handleMessage('300', '2 weeks');
-    await flow.handleMessage('300', 'limited bending');
-    await flow.handleMessage('300', 'normal');
-    await flow.handleMessage('300', 'none');
-    const response = await flow.handleMessage('300', 'appointment');
+    await flow.handleMessage('300', 'Ada Patient');   // fullName
+    await flow.handleMessage('300', '12345678');      // dni
+    await flow.handleMessage('300', '56');            // age ≥ 56 → pending_review
+    await flow.handleMessage('300', 'Surco');         // district
+    await flow.handleMessage('300', 'back');          // painArea
+    await flow.handleMessage('300', '2 weeks');       // painDuration
+    await flow.handleMessage('300', 'limited bending'); // limitation
+    await flow.handleMessage('300', 'normal');        // gait
+    await flow.handleMessage('300', 'none');          // assistiveDevice
+    const response = await flow.handleMessage('300', 'appointment'); // motive → triggers eligibility
 
     expect(response.state.step).toBe('scheduling.pending_review');
     expect(response.text).toContain('radiografía');

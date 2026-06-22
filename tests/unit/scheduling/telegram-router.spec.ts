@@ -70,6 +70,6 @@ describe('MessageRouter', () => {
     const result = await router.route(makeUpdate('/schedule', 200));
 
     expect(result.role).toBe('patient');
-    expect(sentMessages[0]).toContain('sede');
+    expect(sentMessages[0]).toContain('nombre completo');
   });
 });

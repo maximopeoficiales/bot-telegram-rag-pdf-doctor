@@ -19,7 +19,6 @@ import type { TelegramUpdate } from '../../src/delivery/message-router/message-p
 
 const intakeAnswers = ['Ada Patient', '12345678', '40', 'Surco', 'back', '2 weeks', 'limited bending', 'normal', 'none', 'appointment'];
 const reviewAnswers = ['Review Patient', '87654321', '56', 'Surco', 'back', '2 weeks', 'limited bending', 'normal', 'none', 'appointment'];
-
 describe('telegram bot MVP e2e', () => {
   it('books an eligible patient, creates a calendar event, and notifies staff', async () => {
     const sentMessages: string[] = [];
@@ -27,7 +26,8 @@ describe('telegram bot MVP e2e', () => {
     const createdEvents: string[] = [];
     const router = createRouter({ sentMessages, staffMessages, createdEvents });
 
-    for (const text of ['/schedule', 'Surco', '2026-07-01', '10:00', ...intakeAnswers, 'confirm']) {
+    // New order: /schedule → intake → eligibility pass → Surco → date → slot → confirm
+    for (const text of ['/schedule', ...intakeAnswers, 'Surco', '2026-07-01', '10:00', 'confirm']) {
       await send(router, text);
     }
 
@@ -42,7 +42,8 @@ describe('telegram bot MVP e2e', () => {
     const createdEvents: string[] = [];
     const router = createRouter({ sentMessages, staffMessages, createdEvents });
 
-    for (const text of ['/schedule', 'Surco', '2026-07-01', '10:00', ...reviewAnswers]) {
+    // New order: /schedule → intake → eligibility pending_review (age 56) → no location/date/slot
+    for (const text of ['/schedule', ...reviewAnswers]) {
       await send(router, text);
     }
 
