@@ -29,9 +29,9 @@ describe('notifications integration', () => {
     await service.patientFileUploaded({ caseId: 2, telegramUserId: '200', fileId: 'file-1', fileType: 'pdf' });
 
     expect(records.map((record) => record.type)).toEqual(['appointment_confirmed', 'pending_review', 'patient_file_uploaded']);
-    expect(messages[0]).toContain('New appointment confirmed');
-    expect(messages[1]).toContain('pending staff review');
-    expect(messages[2]).toContain('Patient file uploaded');
+    expect(messages[0]).toContain('Nueva cita confirmada');
+    expect(messages[1]).toContain('pendiente de revisión');
+    expect(messages[2]).toContain('Archivo subido');
   });
 
   it('sends Telegram Bot API messages to the configured staff group', async () => {

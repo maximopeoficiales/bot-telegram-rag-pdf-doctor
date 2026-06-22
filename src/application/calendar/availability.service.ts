@@ -63,8 +63,19 @@ export class AvailabilityService {
     const patientCase = await this.cases?.create({ telegramUserId: input.telegramUserId, status: 'confirmed', intake: input.intake });
     const caseId = patientCase?.id ?? 0;
     const event = await this.calendar.createEvent({
-      summary: `Appointment - ${input.intake.fullName}`,
-      description: `DNI: ${input.intake.dni}\nMotive: ${input.intake.motive}`,
+      summary: `Cita: ${input.intake.fullName}`,
+      description: [
+        `Paciente: ${input.intake.fullName}`,
+        `DNI: ${input.intake.dni}`,
+        `Edad: ${input.intake.age} años`,
+        `Distrito: ${input.intake.district}`,
+        `Zona de dolor: ${input.intake.painArea}`,
+        `Tiempo de evolución: ${input.intake.painDuration}`,
+        `Limitación funcional: ${input.intake.limitation}`,
+        `Marcha: ${input.intake.gait === 'normal' ? 'Normal' : 'Desequilibrio'}`,
+        `Dispositivo de apoyo: ${input.intake.assistiveDevice}`,
+        `Motivo: ${input.intake.motive}`
+      ].join('\n'),
       location: config.label,
       startsAt,
       endsAt,

@@ -31,8 +31,8 @@ describe('telegram bot MVP e2e', () => {
       await send(router, text);
     }
 
-    expect(createdEvents).toEqual(['Appointment - Ada Patient']);
-    expect(staffMessages.some((m) => m.includes('New appointment confirmed'))).toBe(true);
+    expect(createdEvents).toEqual(['Cita: Ada Patient']);
+    expect(staffMessages.some((m) => m.includes('Nueva cita confirmada'))).toBe(true);
     expect(sentMessages.at(-1)).toContain('cita está confirmada');
   });
 
@@ -47,7 +47,7 @@ describe('telegram bot MVP e2e', () => {
     }
 
     expect(createdEvents).toEqual([]);
-    expect(staffMessages.some((m) => m.includes('pending staff review'))).toBe(true);
+    expect(staffMessages.some((m) => m.includes('pendiente de revisión'))).toBe(true);
     expect(sentMessages.at(-1)).toContain('radiografía');
   });
 

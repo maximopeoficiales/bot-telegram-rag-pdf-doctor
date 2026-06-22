@@ -27,12 +27,12 @@ export class NotificationService {
     await this.record(input.caseId, 'appointment_confirmed', input);
     await this.staffGroup.sendMessage(
       [
-        '✅ New appointment confirmed',
-        `Patient: ${input.patient.fullName}`,
+        '✅ Nueva cita confirmada',
+        `Paciente: ${input.patient.fullName}`,
         `DNI: ${input.patient.dni}`,
-        `Location: ${input.locationId.toUpperCase()}`,
-        `Starts: ${input.startsAt.toISOString()}`,
-        `Google event: ${input.googleEventId}`
+        `Sede: ${input.locationId.toUpperCase()}`,
+        `Inicio: ${input.startsAt.toLocaleString('es-PE', { timeZone: 'America/Lima' })}`,
+        `Evento Google: ${input.googleEventId}`
       ].join('\n')
     );
   }
@@ -41,11 +41,11 @@ export class NotificationService {
     await this.record(input.caseId, 'pending_review', input);
     await this.staffGroup.sendMessage(
       [
-        '⚠️ Case pending staff review',
-        `Case: ${input.caseId}`,
-        `Patient: ${input.patient.fullName}`,
-        `Reason: ${input.reasonCode}`,
-        `Radiography required: ${input.requiresRadiography ? 'yes' : 'no'}`
+        '⚠️ Caso pendiente de revisión',
+        `Caso: ${input.caseId}`,
+        `Paciente: ${input.patient.fullName}`,
+        `Motivo: ${input.reasonCode}`,
+        `Requiere radiografía: ${input.requiresRadiography ? 'Sí' : 'No'}`
       ].join('\n')
     );
   }
@@ -54,12 +54,12 @@ export class NotificationService {
     await this.record(input.caseId, 'patient_file_uploaded', input);
     await this.staffGroup.sendMessage(
       [
-        '📎 Patient file uploaded',
-        `Case: ${input.caseId}`,
-        `Patient Telegram ID: ${input.telegramUserId}`,
-        `Type: ${input.fileType}`,
+        '📎 Archivo subido por paciente',
+        `Caso: ${input.caseId}`,
+        `Telegram ID del paciente: ${input.telegramUserId}`,
+        `Tipo: ${input.fileType}`,
         `Telegram file ID: ${input.fileId}`,
-        'Case remains pending review until staff decides.'
+        'El caso sigue pendiente de revisión hasta que el staff decida.'
       ].join('\n')
     );
   }
