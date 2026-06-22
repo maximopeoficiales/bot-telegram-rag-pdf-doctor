@@ -47,12 +47,14 @@ async function main() {
     ? new GeminiAdapter({
       apiKey: env.GEMINI_API_KEY,
       generationModel: env.GEMINI_MODEL,
-      embeddingModel: env.GEMINI_EMBEDDING_MODEL
+      embeddingModel: env.GEMINI_EMBEDDING_MODEL,
+      clinicTimezone: env.CLINIC_TIMEZONE
     })
     : new OllamaAdapter({
       baseUrl: env.OLLAMA_BASE_URL,
       generationModel: env.OLLAMA_GENERATION_MODEL,
-      embeddingModel: env.OLLAMA_EMBEDDING_MODEL
+      embeddingModel: env.OLLAMA_EMBEDDING_MODEL,
+      clinicTimezone: env.CLINIC_TIMEZONE
     });
   const vectorStore = new PgVectorStore(db);
 

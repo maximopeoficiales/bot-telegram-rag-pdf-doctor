@@ -18,7 +18,8 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_REDIRECT_URI: z.string().url(),
   GOOGLE_REFRESH_TOKEN: z.string().min(1),
-  GOOGLE_CALENDAR_ID: z.string().min(1).default('primary')
+  GOOGLE_CALENDAR_ID: z.string().min(1).default('primary'),
+  CLINIC_TIMEZONE: z.string().default('America/Lima')
 }).superRefine((env, ctx) => {
   if (env.AI_PROVIDER === 'gemini' && env.GEMINI_API_KEY.trim() === '') {
     ctx.addIssue({

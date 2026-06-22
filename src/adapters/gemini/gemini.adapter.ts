@@ -6,6 +6,7 @@ export type GeminiAdapterConfig = {
   apiKey: string;
   generationModel?: string;
   embeddingModel?: string;
+  clinicTimezone?: string;
   fetch?: typeof fetch;
 };
 
@@ -28,11 +29,13 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort, AiInterpret
   private readonly apiKey: string;
   private readonly generationModel: string;
   private readonly embeddingModel: string;
+  private readonly clinicTimezone: string;
 
   constructor(config: GeminiAdapterConfig) {
     this.apiKey = config.apiKey;
     this.generationModel = config.generationModel ?? DEFAULT_GENERATION_MODEL;
     this.embeddingModel = config.embeddingModel ?? DEFAULT_EMBEDDING_MODEL;
+    this.clinicTimezone = config.clinicTimezone ?? 'America/Lima';
     this.fetchFn = config.fetch ?? fetch;
   }
 
@@ -169,10 +172,10 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort, AiInterpret
   async interpretDate(text: string): Promise<string | null> {
     try {
       // Use Lima timezone (America/Lima, UTC-5) — the clinic and patients are in Peru
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: this.clinicTimezone }).format(new Date());
 
       const prompt = [
-        `Hoy es ${today} (Lima, Perú).`,
+        `Hoy es ${today} (timezone: ${this.clinicTimezone}).`,
         `El usuario escribió: "${text}"`,
         'Interpreta esto como una fecha de cita médica relativa a hoy.',
         'Devuelve la fecha en formato YYYY-MM-DD.',
