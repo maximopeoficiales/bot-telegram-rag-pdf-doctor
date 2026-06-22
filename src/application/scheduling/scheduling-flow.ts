@@ -10,7 +10,7 @@ import {
 } from '../../domain/eligibility/eligibility-engine.js';
 import type { AvailabilityService, BookingResult } from '../calendar/availability.service.js';
 import type { NotificationService } from '../notifications/notification.service.js';
-import type { GeminiAdapter } from '../../adapters/gemini/gemini.adapter.js';
+import type { AiInterpretationPort } from '../../ports/ai.port.js';
 
 export const requiredIntakeFields = [
   'fullName',
@@ -47,6 +47,11 @@ export type SchedulingReply = {
 export type SchedulingCaseStore = {
   create(input: { telegramUserId: string; status: 'pending_review'; intake: PatientIntake }): Promise<{ id: number }>;
 };
+
+export type SchedulingAiInterpreter = Pick<
+  AiInterpretationPort,
+  'interpretConfirmation' | 'interpretDate' | 'interpretSlot' | 'interpretLocation'
+>;
 
 // Fallback windows used only when DB has no schedule and AvailabilityService is absent
 const fallbackWindows: Record<LocationId, { label: string; start: string; end: string }> = {
@@ -95,7 +100,7 @@ export class SchedulingFlow {
     private readonly availability?: AvailabilityService,
     private readonly notifications?: NotificationService,
     private readonly cases?: SchedulingCaseStore,
-    private readonly gemini?: GeminiAdapter
+    private readonly aiInterpreter?: SchedulingAiInterpreter
   ) {}
 
   async handleMessage(telegramUserId: string, text: string): Promise<SchedulingReply> {
@@ -131,8 +136,8 @@ export class SchedulingFlow {
   private async handleLocation(state: ConversationState, text: string): Promise<SchedulingReply> {
     let locationId = this.parseLocation(text);
 
-    if (!locationId && this.gemini) {
-      locationId = await this.gemini.interpretLocation(text);
+    if (!locationId && this.aiInterpreter) {
+      locationId = await this.aiInterpreter.interpretLocation(text);
     }
 
     if (!locationId) {
@@ -151,8 +156,8 @@ export class SchedulingFlow {
   private async handleDate(state: ConversationState, text: string): Promise<SchedulingReply> {
     let dateText = text;
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText) && this.gemini) {
-      const interpreted = await this.gemini.interpretDate(text);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText) && this.aiInterpreter) {
+      const interpreted = await this.aiInterpreter.interpretDate(text);
       if (interpreted) dateText = interpreted;
     }
 
@@ -162,9 +167,7 @@ export class SchedulingFlow {
 
     const draft = this.draft(state);
     const locationId = draft.locationId ?? 'surco';
-    const slots = this.availability
-      ? await this.availability.availableSlots({ locationId, date: dateText })
-      : availableSlotsForLocation(locationId);
+    const slots = await this.availableSlots(locationId, dateText);
 
     return this.persist(
       state,
@@ -178,12 +181,12 @@ export class SchedulingFlow {
   private async handleSlot(state: ConversationState, text: string): Promise<SchedulingReply> {
     const draft = this.draft(state);
     const locationId = draft.locationId ?? 'surco';
-    const slots = availableSlotsForLocation(locationId);
+    const slots = await this.availableSlots(locationId, draft.date);
 
     let selectedSlot = slots.includes(text) ? text : null;
 
-    if (!selectedSlot && this.gemini) {
-      selectedSlot = await this.gemini.interpretSlot(text, slots);
+    if (!selectedSlot && this.aiInterpreter) {
+      selectedSlot = await this.aiInterpreter.interpretSlot(text, slots);
     }
 
     if (!selectedSlot) {
@@ -262,8 +265,8 @@ export class SchedulingFlow {
     const exactMatch = ['confirm', 'yes', 'book', 'confirmar', 'sí', 'si', 'reservar'].includes(text.toLowerCase());
     let isConfirmed = exactMatch;
 
-    if (!isConfirmed && this.gemini) {
-      isConfirmed = await this.gemini.interpretConfirmation(text);
+    if (!isConfirmed && this.aiInterpreter) {
+      isConfirmed = await this.aiInterpreter.interpretConfirmation(text);
     }
 
     if (!isConfirmed) {
@@ -314,6 +317,12 @@ export class SchedulingFlow {
 
   private draft(state: ConversationState): SchedulingDraft {
     return state.data as SchedulingDraft;
+  }
+
+  private async availableSlots(locationId: LocationId, date?: string): Promise<string[]> {
+    return this.availability && date
+      ? this.availability.availableSlots({ locationId, date })
+      : availableSlotsForLocation(locationId);
   }
 
   private parseLocation(text: string): LocationId | null {

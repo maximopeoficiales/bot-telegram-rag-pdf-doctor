@@ -1,5 +1,6 @@
-import type { EmbeddingPort, GenerationPort } from '../../ports/ai.port.js';
+import type { AiInterpretationPort, EmbeddingPort, ExtractedSchedule, GenerationPort } from '../../ports/ai.port.js';
 import type { LocationId } from '../../application/scheduling/scheduling-flow.js';
+import { isValidScheduleEntry } from '../../lib/schedule-validation.js';
 
 export type GeminiAdapterConfig = {
   apiKey: string;
@@ -18,16 +19,11 @@ type GenerateResponse = {
   }>;
 };
 
-export type ExtractedSchedule = {
-  surco?: { start: string; end: string };
-  vmt?: { start: string; end: string };
-};
-
 const DEFAULT_GENERATION_MODEL = 'gemini-1.5-flash';
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
 const EMBEDDING_DIMENSIONS = 768;
 
-export class GeminiAdapter implements EmbeddingPort, GenerationPort {
+export class GeminiAdapter implements EmbeddingPort, GenerationPort, AiInterpretationPort {
   private readonly fetchFn: typeof fetch;
   private readonly apiKey: string;
   private readonly generationModel: string;
@@ -133,12 +129,20 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort {
         `Texto:\n${content}`
       ].join('\n');
 
-      const raw = await this.generate(prompt);
-      const cleaned = raw.replace(/```json|```/g, '').trim();
+      const rawText = await this.generate(prompt);
+      const cleaned = rawText.replace(/```json|```/g, '').trim();
 
       if (cleaned === 'null' || cleaned === '') return null;
 
-      return JSON.parse(cleaned) as ExtractedSchedule;
+      const parsed: unknown = JSON.parse(cleaned);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+
+      const record = parsed as Record<string, unknown>;
+      const schedule: ExtractedSchedule = {};
+      if (isValidScheduleEntry(record['surco'])) schedule.surco = record['surco'];
+      if (isValidScheduleEntry(record['vmt'])) schedule.vmt = record['vmt'];
+
+      return schedule.surco || schedule.vmt ? schedule : null;
     } catch {
       return null;
     }

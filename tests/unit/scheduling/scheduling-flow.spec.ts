@@ -4,7 +4,9 @@ import {
   availableSlotsForLocation,
   validateRequiredIntake
 } from '../../../src/application/scheduling/scheduling-flow.js';
+import { AvailabilityService } from '../../../src/application/calendar/availability.service.js';
 import { InMemoryConversationStateStore } from '../../../src/domain/conversation/conversation-state.js';
+import type { CalendarPort } from '../../../src/ports/calendar.port.js';
 
 describe('SchedulingFlow', () => {
   it('blocks booking when required intake fields are missing', () => {
@@ -51,6 +53,45 @@ describe('SchedulingFlow', () => {
   it('offers initial location slots within configured hours', () => {
     expect(availableSlotsForLocation('surco')).toEqual(['10:00', '10:30', '11:00', '11:30', '12:00', '12:30']);
     expect(availableSlotsForLocation('vmt')).toEqual(['18:00', '18:30', '19:00', '19:30']);
+  });
+
+  it('validates selected slots against DB-backed availability for the selected date and location', async () => {
+    const store = new InMemoryConversationStateStore();
+    const calendar: CalendarPort = {
+      async freeBusy() {
+        return [];
+      },
+      async createEvent() {
+        return { id: 'event-1' };
+      }
+    };
+    const availability = new AvailabilityService(calendar, undefined, undefined, {
+      async findByLocation(locationId) {
+        return {
+          locationId,
+          label: locationId === 'surco' ? 'Surco' : 'VMT',
+          start: '09:00',
+          end: '10:00',
+          timeZone: 'America/Lima',
+          durationMinutes: 30
+        };
+      },
+      async upsert() {}
+    });
+    const flow = new SchedulingFlow(store, undefined, availability);
+
+    await store.save({
+      telegramUserId: '250',
+      flow: 'scheduling',
+      step: 'scheduling.slot',
+      data: { locationId: 'surco', date: '2026-07-01' }
+    });
+
+    const response = await flow.handleMessage('250', '09:00');
+
+    expect(response.advanced).toBe(true);
+    expect(response.state.step).toBe('scheduling.ready_to_confirm');
+    expect(response.state.data).toMatchObject({ slot: '09:00' });
   });
 
   it('holds radiography cases for staff review after intake completion', async () => {

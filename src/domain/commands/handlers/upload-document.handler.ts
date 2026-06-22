@@ -3,19 +3,22 @@ import type { CommandHandler } from '../command-handler.interface.js';
 import type { ParsedMessage } from '../parsed-message.js';
 import type { HandlerContext, HandlerResult } from '../handler-context.js';
 import type { KnowledgeIngestionService } from '../../../application/knowledge/knowledge-ingestion.js';
-import type { GeminiAdapter } from '../../../adapters/gemini/gemini.adapter.js';
+import type { AiInterpretationPort } from '../../../ports/ai.port.js';
 import type { ScheduleRepository } from '../../../application/scheduling/schedule.repository.js';
 import type { LocationId } from '../../../application/scheduling/scheduling-flow.js';
+import { isValidScheduleEntry } from '../../../lib/schedule-validation.js';
 
 const FLOW = 'upload_document';
 const STEP_WAITING_TITLE = 'upload_document.waiting_title';
 const STEP_WAITING_CONTENT = 'upload_document.waiting_content';
 const STEP_WAITING_SCHEDULE_CONFIRM = 'upload_document.waiting_schedule_confirm';
 
+export type UploadDocumentAiInterpreter = Pick<AiInterpretationPort, 'extractSchedule' | 'interpretConfirmation'>;
+
 export class UploadDocumentHandler implements CommandHandler {
   constructor(
     private readonly ingestion: KnowledgeIngestionService,
-    private readonly gemini: GeminiAdapter,
+    private readonly aiInterpreter: UploadDocumentAiInterpreter,
     private readonly scheduleRepo: ScheduleRepository
   ) {}
 
@@ -98,7 +101,7 @@ export class UploadDocumentHandler implements CommandHandler {
       return { handled: true };
     }
 
-    const extractedSchedule = await this.gemini.extractSchedule(content);
+    const extractedSchedule = await this.aiInterpreter.extractSchedule(content);
 
     if (extractedSchedule && Object.keys(extractedSchedule).length > 0) {
       const lines: string[] = [];
@@ -132,10 +135,16 @@ export class UploadDocumentHandler implements CommandHandler {
     const content = (data['content'] as string | undefined) ?? '';
     const extractedSchedule = data['extractedSchedule'] as Record<string, { start: string; end: string }> | undefined;
 
-    const isConfirmed = await this.gemini.interpretConfirmation(message.text);
+    const isConfirmed = await this.aiInterpreter.interpretConfirmation(message.text);
 
     if (isConfirmed && extractedSchedule) {
       for (const [locationId, window] of Object.entries(extractedSchedule)) {
+        // Re-validate each window from the stored conversation state before
+        // persisting — the AI adapter already validated on extraction, but
+        // the state round-trip through JSON deserialisation and the handler
+        // boundary check here act as the final defence against malformed data.
+        if (!isValidScheduleEntry(window)) continue;
+
         await this.scheduleRepo.upsert({
           locationId: locationId as LocationId,
           label: locationId === 'surco' ? 'Surco' : 'VMT',

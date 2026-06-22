@@ -7,6 +7,7 @@ import { DbScheduleRepository } from './adapters/db/schedule.repository.js';
 import { TelegramMessagingAdapter } from './adapters/messaging/telegram-messaging.adapter.js';
 import { GoogleCalendarAdapter } from './adapters/google-calendar/google-calendar.adapter.js';
 import { GeminiAdapter } from './adapters/gemini/gemini.adapter.js';
+import { OllamaAdapter } from './adapters/ollama/ollama.adapter.js';
 import { PgVectorStore } from './adapters/vector-store/pgvector-store.js';
 import { MessageRouter, StaticStaffAllowlistStore } from './delivery/message-router/message-router.js';
 import { AvailabilityService } from './application/calendar/availability.service.js';
@@ -42,23 +43,29 @@ async function main() {
     clientSecret: env.GOOGLE_CLIENT_SECRET,
     refreshToken: env.GOOGLE_REFRESH_TOKEN
   });
-  const gemini = new GeminiAdapter({
-    apiKey: env.GEMINI_API_KEY,
-    generationModel: env.GEMINI_MODEL,
-    embeddingModel: env.GEMINI_EMBEDDING_MODEL
-  });
+  const ai = env.AI_PROVIDER === 'gemini'
+    ? new GeminiAdapter({
+      apiKey: env.GEMINI_API_KEY,
+      generationModel: env.GEMINI_MODEL,
+      embeddingModel: env.GEMINI_EMBEDDING_MODEL
+    })
+    : new OllamaAdapter({
+      baseUrl: env.OLLAMA_BASE_URL,
+      generationModel: env.OLLAMA_GENERATION_MODEL,
+      embeddingModel: env.OLLAMA_EMBEDDING_MODEL
+    });
   const vectorStore = new PgVectorStore(db);
 
   // Application services
   const availability = new AvailabilityService(calendar, undefined, undefined, scheduleRepo);
-  const schedulingFlow = new SchedulingFlow(conversations, undefined, availability, undefined, undefined, gemini);
-  const ragQaFlow = new RagQaFlow(gemini, vectorStore, gemini);
+  const schedulingFlow = new SchedulingFlow(conversations, undefined, availability, undefined, undefined, ai);
+  const ragQaFlow = new RagQaFlow(ai, vectorStore, ai);
   const knowledgeIngestion = new KnowledgeIngestionService(
     { isAuthorized: (id) => staffAllowlist.isAuthorized(id) },
-    gemini,
+    ai,
     vectorStore
   );
-  const uploadDocumentHandler = new UploadDocumentHandler(knowledgeIngestion, gemini, scheduleRepo);
+  const uploadDocumentHandler = new UploadDocumentHandler(knowledgeIngestion, ai, scheduleRepo);
 
   // Router — handlers registered in priority order
   const router = new MessageRouter(
@@ -74,7 +81,7 @@ async function main() {
     .registerHandler(new AuthorizationGuard())        // 1. deny unauthorized staff commands
     .registerHandler(new ReplyCommandHandler())        // 2. /reply <caseId> <msg>
     .registerHandler(new FileUploadHandler())          // 3. file uploads
-    .registerHandler(new UploadDocumentHandler(knowledgeIngestion, gemini, scheduleRepo))  // 4. /upload_document
+    .registerHandler(new UploadDocumentHandler(knowledgeIngestion, ai, scheduleRepo))  // 4. /upload_document
     .registerHandler(new StaffCommandHandler())        // 5. authorized staff commands
     .registerHandler(new StartCommandHandler())        // 6. /start
     .registerHandler(new ScheduleCommandHandler())     // 7. /schedule
