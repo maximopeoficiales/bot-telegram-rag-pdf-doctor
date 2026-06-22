@@ -6,7 +6,7 @@ export type QaAnswer =
   | { kind: 'redirect_to_scheduling'; text: string }
   | { kind: 'insufficient_knowledge'; text: string };
 
-const schedulingIntent = /\b(book|schedule|appointment|eligible|availability|slot|cita|agenda|turno)\b/i;
+const schedulingIntent = /\b(book|schedule|appointment|eligible|availability|slot|cita|agenda|turno|agendar|reservar|consulta|atenci[oó]n|atender|quiero|quisiera)\b/i;
 
 export class RagQaFlow {
   constructor(
