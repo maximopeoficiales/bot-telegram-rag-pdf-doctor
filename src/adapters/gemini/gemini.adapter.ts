@@ -90,7 +90,11 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort {
       `Pregunta: ${input.question}`
     ].join('\n');
 
-    return this.generate(prompt);
+    try {
+      return await this.generate(prompt);
+    } catch {
+      return 'No puedo responder en este momento. Por favor intenta en unos minutos.';
+    }
   }
 
   async extractRules(input: { title: string; content: string }): Promise<unknown[]> {
@@ -116,24 +120,24 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort {
   // ── Schedule extraction ────────────────────────────────────────────────────
 
   async extractSchedule(content: string): Promise<ExtractedSchedule | null> {
-    const prompt = [
-      'Analiza el siguiente texto e identifica si contiene información de horarios de atención.',
-      'Las sedes son: Surco y VMT (Villa María del Triunfo).',
-      'Si encuentras horarios, devuelve un JSON con este formato exacto:',
-      '{ "surco": { "start": "HH:MM", "end": "HH:MM" }, "vmt": { "start": "HH:MM", "end": "HH:MM" } }',
-      'Incluye solo las sedes que tengan horario explícito en el texto.',
-      'Si NO hay horarios en el texto, devuelve exactamente: null',
-      'Solo devuelve el JSON o null, sin explicaciones.',
-      '',
-      `Texto:\n${content}`
-    ].join('\n');
-
-    const raw = await this.generate(prompt);
-    const cleaned = raw.replace(/```json|```/g, '').trim();
-
-    if (cleaned === 'null' || cleaned === '') return null;
-
     try {
+      const prompt = [
+        'Analiza el siguiente texto e identifica si contiene información de horarios de atención.',
+        'Las sedes son: Surco y VMT (Villa María del Triunfo).',
+        'Si encuentras horarios, devuelve un JSON con este formato exacto:',
+        '{ "surco": { "start": "HH:MM", "end": "HH:MM" }, "vmt": { "start": "HH:MM", "end": "HH:MM" } }',
+        'Incluye solo las sedes que tengan horario explícito en el texto.',
+        'Si NO hay horarios en el texto, devuelve exactamente: null',
+        'Solo devuelve el JSON o null, sin explicaciones.',
+        '',
+        `Texto:\n${content}`
+      ].join('\n');
+
+      const raw = await this.generate(prompt);
+      const cleaned = raw.replace(/```json|```/g, '').trim();
+
+      if (cleaned === 'null' || cleaned === '') return null;
+
       return JSON.parse(cleaned) as ExtractedSchedule;
     } catch {
       return null;
@@ -143,70 +147,86 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort {
   // ── Intent interpretation ──────────────────────────────────────────────────
 
   async interpretConfirmation(text: string): Promise<boolean> {
-    const prompt = [
-      'El usuario debe confirmar o rechazar una cita médica.',
-      `El usuario escribió: "${text}"`,
-      '¿Esto es una CONFIRMACIÓN de la cita?',
-      'Responde solo con: SI o NO'
-    ].join('\n');
+    try {
+      const prompt = [
+        'El usuario debe confirmar o rechazar una cita médica.',
+        `El usuario escribió: "${text}"`,
+        '¿Esto es una CONFIRMACIÓN de la cita?',
+        'Responde solo con: SI o NO'
+      ].join('\n');
 
-    const raw = await this.generate(prompt);
-    return raw.trim().toUpperCase().startsWith('SI');
+      const raw = await this.generate(prompt);
+      return raw.trim().toUpperCase().startsWith('SI');
+    } catch {
+      return false;
+    }
   }
 
   async interpretDate(text: string): Promise<string | null> {
-    const today = new Date().toISOString().split('T')[0];
+    try {
+      const today = new Date().toISOString().split('T')[0];
 
-    const prompt = [
-      `Hoy es ${today}.`,
-      `El usuario escribió: "${text}"`,
-      'Interpreta esto como una fecha de cita médica.',
-      'Devuelve la fecha en formato YYYY-MM-DD.',
-      'Si no puedes interpretar una fecha válida, devuelve: null',
-      'Solo devuelve la fecha o null, sin explicaciones.'
-    ].join('\n');
+      const prompt = [
+        `Hoy es ${today}.`,
+        `El usuario escribió: "${text}"`,
+        'Interpreta esto como una fecha de cita médica.',
+        'Devuelve la fecha en formato YYYY-MM-DD.',
+        'Si no puedes interpretar una fecha válida, devuelve: null',
+        'Solo devuelve la fecha o null, sin explicaciones.'
+      ].join('\n');
 
-    const raw = await this.generate(prompt);
-    const cleaned = raw.trim();
+      const raw = await this.generate(prompt);
+      const cleaned = raw.trim();
 
-    if (cleaned === 'null') return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return cleaned;
-    return null;
+      if (cleaned === 'null') return null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return cleaned;
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   async interpretSlot(text: string, availableSlots: string[]): Promise<string | null> {
-    const prompt = [
-      `Los horarios disponibles son: ${availableSlots.join(', ')}`,
-      `El usuario escribió: "${text}"`,
-      'Identifica a cuál de los horarios disponibles se refiere el usuario.',
-      `Devuelve el horario exacto (formato HH:MM) de la lista: ${availableSlots.join(', ')}`,
-      'Si no coincide con ninguno, devuelve: null',
-      'Solo devuelve el horario o null, sin explicaciones.'
-    ].join('\n');
+    try {
+      const prompt = [
+        `Los horarios disponibles son: ${availableSlots.join(', ')}`,
+        `El usuario escribió: "${text}"`,
+        'Identifica a cuál de los horarios disponibles se refiere el usuario.',
+        `Devuelve el horario exacto (formato HH:MM) de la lista: ${availableSlots.join(', ')}`,
+        'Si no coincide con ninguno, devuelve: null',
+        'Solo devuelve el horario o null, sin explicaciones.'
+      ].join('\n');
 
-    const raw = await this.generate(prompt);
-    const cleaned = raw.trim();
+      const raw = await this.generate(prompt);
+      const cleaned = raw.trim();
 
-    if (availableSlots.includes(cleaned)) return cleaned;
-    return null;
+      if (availableSlots.includes(cleaned)) return cleaned;
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   async interpretLocation(text: string): Promise<LocationId | null> {
-    const prompt = [
-      'Las sedes del consultorio son: Surco y VMT (Villa María del Triunfo).',
-      `El usuario escribió: "${text}"`,
-      '¿A cuál sede se refiere?',
-      'Devuelve exactamente: surco o vmt',
-      'Si no se refiere a ninguna, devuelve: null',
-      'Solo devuelve la respuesta, sin explicaciones.'
-    ].join('\n');
+    try {
+      const prompt = [
+        'Las sedes del consultorio son: Surco y VMT (Villa María del Triunfo).',
+        `El usuario escribió: "${text}"`,
+        '¿A cuál sede se refiere?',
+        'Devuelve exactamente: surco o vmt',
+        'Si no se refiere a ninguna, devuelve: null',
+        'Solo devuelve la respuesta, sin explicaciones.'
+      ].join('\n');
 
-    const raw = await this.generate(prompt);
-    const cleaned = raw.trim().toLowerCase();
+      const raw = await this.generate(prompt);
+      const cleaned = raw.trim().toLowerCase();
 
-    if (cleaned === 'surco') return 'surco';
-    if (cleaned === 'vmt') return 'vmt';
-    return null;
+      if (cleaned === 'surco') return 'surco';
+      if (cleaned === 'vmt') return 'vmt';
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────

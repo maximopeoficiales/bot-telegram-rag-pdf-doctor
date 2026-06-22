@@ -81,7 +81,7 @@ async function main() {
     .registerHandler(new TextMessageHandler());        // 8. fallback (RAG or scheduling)
 
   // Server
-  const server = buildServer(router, env);
+  const server = buildServer(router, env, messaging);
   await startServer(server, env.PORT);
 
   console.log(`Telegram bot MVP running on port ${env.PORT}`);
