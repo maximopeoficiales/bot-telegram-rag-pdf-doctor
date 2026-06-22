@@ -9,6 +9,7 @@ Get the bot running on your machine end-to-end: Telegram webhooks → local serv
 | Docker Desktop | Latest | https://www.docker.com/products/docker-desktop |
 | Node.js | 22+ | https://nodejs.org |
 | cloudflared | Latest | `brew install cloudflare/cloudflare/cloudflared` |
+| Ollama | 0.24.0+ | https://ollama.com/download |
 
 ---
 
@@ -22,25 +23,29 @@ cd bot-telegram-rag-pdf-doctor
 # 2. Copy the environment template
 cp .env.example .env
 
-# 3. Fill in credentials (see Credentials section below)
+# 3. Pull local AI models used by the default Ollama provider
+ollama pull qwen2.5:7b
+ollama pull nomic-embed-text
+
+# 4. Fill in credentials (see Credentials section below)
 nano .env
 
-# 4. Start the stack (PostgreSQL + App)
+# 5. Start the stack (PostgreSQL + App)
 docker compose -f docker-compose.local.yml up -d --build
 
-# 5. Run database migrations
+# 6. Run database migrations
 docker compose -f docker-compose.local.yml exec app npm run db:migrate
 
-# 6. Expose localhost to the internet
+# 7. Expose localhost to the internet
 cloudflared tunnel --url http://localhost:3000
 # Copy the URL printed: https://xxxxx.trycloudflare.com
 
-# 7. Register the Telegram webhook
+# 8. Register the Telegram webhook
 curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://xxxxx.trycloudflare.com/webhook/telegram"}'
 
-# 8. Open Telegram, find @MaxRagIABot, send /start
+# 9. Open Telegram, find @MaxRagIABot, send /start
 ```
 
 ---
@@ -63,7 +68,44 @@ Your Telegram numeric user ID. Authorizes you as staff.
 2. Send `/start`
 3. Copy the `Id:` value (format: `903118957`)
 
-### `GEMINI_API_KEY`
+### AI provider (`AI_PROVIDER`)
+
+Local Docker development defaults to Ollama:
+
+```env
+AI_PROVIDER=ollama
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_GENERATION_MODEL=qwen2.5:7b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+```
+
+From inside Docker Desktop on macOS, `localhost` points to the container. Use `http://host.docker.internal:11434` to reach Ollama running natively on your Mac.
+
+Install and verify the required models:
+
+```bash
+ollama pull qwen2.5:7b
+ollama pull nomic-embed-text
+
+# Optional generation smoke check
+curl http://localhost:11434/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen2.5:7b","prompt":"Responde solo: OK","stream":false}'
+
+# Optional embedding smoke check; expected length is 768
+curl http://localhost:11434/api/embed \
+  -H "Content-Type: application/json" \
+  -d '{"model":"nomic-embed-text","input":"prueba"}'
+```
+
+Use Gemini only when you intentionally select it as the configured provider:
+
+```env
+AI_PROVIDER=gemini
+GEMINI_API_KEY=<key from Google AI Studio>
+```
+
+### `GEMINI_API_KEY` (required only with `AI_PROVIDER=gemini`)
 
 1. Go to https://aistudio.google.com/app/apikey
 2. Click **Get API key** → **Create API key**
@@ -137,8 +179,16 @@ DATABASE_URL=postgresql://postgres:postgres@postgres:5432/rag_pdf
 TELEGRAM_BOT_TOKEN=<token from BotFather>
 TELEGRAM_STAFF_GROUP_CHAT_ID=<your numeric Telegram user ID>
 
-# Gemini
-GEMINI_API_KEY=<key from Google AI Studio>
+# AI provider: Ollama is the default for local Docker dev
+AI_PROVIDER=ollama
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_GENERATION_MODEL=qwen2.5:7b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+
+# Gemini alternate provider; required only with AI_PROVIDER=gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.0-flash-lite
+GEMINI_EMBEDDING_MODEL=text-embedding-004
 
 # Google Calendar OAuth
 GOOGLE_CLIENT_ID=<from Google Cloud Console>
@@ -299,3 +349,5 @@ SchedulingFlow
 | `invalid_grant` (Google OAuth) | Authorization code expired (10 min TTL) | Repeat the OAuth flow from Step 4 |
 | Bot not responding | cloudflared URL changed | Run `setWebhook` again with the new URL |
 | `Database connection refused` | Postgres container not ready | Wait 5 seconds and retry `db:migrate` |
+| `Ollama API error` from the app container | App is using `localhost` instead of the host bridge | Set `OLLAMA_BASE_URL=http://host.docker.internal:11434` |
+| `Ollama embedding dimension mismatch` | Wrong embedding model for pgvector schema | Pull/use `nomic-embed-text`; expected embedding length is 768 |

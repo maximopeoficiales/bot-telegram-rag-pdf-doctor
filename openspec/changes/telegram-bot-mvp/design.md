@@ -16,7 +16,7 @@ Dockerized TypeScript Node backend with Telegram as the primary delivery surface
 | Environments | Dockerized app everywhere; local Docker Compose with app + pgvector Postgres; production app container + Supabase Postgres | Local native Node/Postgres; managed app platform assumptions | Same app artifact across environments while `DATABASE_URL` selects local or Supabase DB. |
 | Local dev image | `Dockerfile.dev` (all deps) vs `Dockerfile` (prod, omit dev) | Single Dockerfile with build args | Explicit separation avoids `tsx not found` errors caused by cached node_modules volumes. |
 | Persistence | PostgreSQL + Drizzle + pgvector | In-memory/vector SaaS | One durable store for conversations, cases, rules, events, and embeddings. |
-| AI provider | Gemini ports for embeddings and generation | Direct SDK calls in domain | Swappable adapters and testable use cases. |
+| AI provider | Configurable Gemini/Ollama ports for embeddings and generation; local Docker dev defaults to Ollama | Direct SDK calls in domain | Keeps domain logic provider-agnostic, avoids Gemini quota blocking local development, and preserves Gemini as an alternate provider selected by configuration. |
 | Calendar truth | Live Google Calendar free-busy + event creation | Cached slots only | Prevents double booking; final confirmation always rechecks. |
 | Authorization | Telegram user ID allowlist (`StaticStaffAllowlistStore`) | Passwords/admin panel | Fits bot-first MVP and supports staff/private group flows. |
 | Language | All user-facing messages in Spanish | Bilingual | Target audience is Spanish-speaking patients. |
@@ -105,13 +105,15 @@ SchedulingFlow
       → NotificationService.appointmentConfirmed (staff group)
 ```
 
-### RAG pipeline (pending Gemini adapter wire-up)
+### RAG pipeline
 
 ```text
 Staff PDF/text → Parse → Chunk → EmbeddingPort → pgvector upsert
 Patient question → VectorStorePort.search → GenerationPort.answer → Telegram reply
 Patient file → PatientCaseFile only (never written to knowledge_documents)
 ```
+
+Local development uses Ollama at `http://host.docker.internal:11434` from inside Docker Desktop on macOS. `nomic-embed-text` is required for 768-dimensional embeddings that match the current pgvector schema. Gemini remains available by setting `AI_PROVIDER=gemini` and providing `GEMINI_API_KEY`.
 
 ### Google Calendar sequence
 
@@ -157,6 +159,6 @@ Current status: 27 tests passing, 1 skipped (DB integration requires live DB fla
 
 - [x] ~~Exact Google OAuth/service-account ownership model for the shared practice calendar.~~ Resolved: personal Google account OAuth with refresh token.
 - [x] ~~Final bilingual copy policy for patient-facing Telegram messages.~~ Resolved: Spanish only.
-- [ ] Gemini adapter implementation for RAG Q&A activation.
+- [x] ~~Gemini adapter implementation for RAG Q&A activation.~~ Resolved: AI ports can now be backed by Gemini or Ollama through `AI_PROVIDER`.
 - [ ] Production deployment guide (Supabase + Dockerfile + webhook URL).
 - [ ] WhatsApp migration plan when needed (adapter placeholder exists).

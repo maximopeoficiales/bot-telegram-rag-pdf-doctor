@@ -69,7 +69,7 @@ Chain strategy: feature-branch-chain
 
 ## Pending / Next Steps
 
-- [ ] 6.1 Implement `GeminiEmbeddingAdapter` and `GeminiGenerationAdapter` to activate RAG Q&A flow end-to-end.
-- [ ] 6.2 Wire `GeminiAdapters` + `VectorStorePort` into `src/main.ts` alongside the scheduling and calendar services.
+- [x] 6.1 Implement configurable AI adapter support with `OllamaAdapter` for local embeddings/generation and Gemini as an alternate env-selected provider to activate RAG Q&A flow end-to-end.
+- [x] 6.2 Wire selected AI provider + `VectorStorePort` into `src/main.ts` alongside the scheduling and calendar services.
 - [ ] 6.3 Implement `WhatsAppMessagingAdapter` (placeholder exists at `src/adapters/messaging/whatsapp-messaging.adapter.ts`) when WhatsApp migration is needed.
 - [ ] 6.4 Add production deployment guide (Supabase + Docker image + webhook URL).
