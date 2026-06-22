@@ -168,12 +168,13 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort, AiInterpret
 
   async interpretDate(text: string): Promise<string | null> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      // Use Lima timezone (America/Lima, UTC-5) — the clinic and patients are in Peru
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
 
       const prompt = [
-        `Hoy es ${today}.`,
+        `Hoy es ${today} (Lima, Perú).`,
         `El usuario escribió: "${text}"`,
-        'Interpreta esto como una fecha de cita médica.',
+        'Interpreta esto como una fecha de cita médica relativa a hoy.',
         'Devuelve la fecha en formato YYYY-MM-DD.',
         'Si no puedes interpretar una fecha válida, devuelve: null',
         'Solo devuelve la fecha o null, sin explicaciones.'
