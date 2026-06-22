@@ -176,13 +176,24 @@ export class OllamaAdapter implements EmbeddingPort, GenerationPort, AiInterpret
 
   async interpretSlot(text: string, availableSlots: string[]): Promise<string | null> {
     try {
+      // Build 12h display so the model understands both formats
+      const slots12h = availableSlots.map((s) => {
+        const [h, m] = s.split(':').map(Number);
+        const period = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 === 0 ? 12 : h % 12;
+        return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+      });
+      const slotsDisplay = availableSlots.map((s, i) => `${s} (${slots12h[i]})`).join(', ');
+
       const prompt = [
-        `Los horarios disponibles son: ${availableSlots.join(', ')}`,
+        `Los horarios disponibles son: ${slotsDisplay}`,
         `El usuario escribió: "${text}"`,
+        'El usuario puede usar formato 12h (7pm, 7 de la noche, 6 y media) o 24h (19:00, 19).',
+        'Si escribe solo un número como "7", intérpretalo como hora (AM o PM según el contexto de los horarios disponibles).',
         'Identifica a cuál de los horarios disponibles se refiere el usuario.',
-        `Devuelve el horario exacto (formato HH:MM) de la lista: ${availableSlots.join(', ')}`,
+        `Devuelve el horario exacto en formato HH:MM de esta lista: ${availableSlots.join(', ')}`,
         'Si no coincide con ninguno, devuelve: null',
-        'Solo devuelve el horario o null, sin explicaciones.'
+        'Solo devuelve el horario en formato HH:MM o null, sin explicaciones.'
       ].join('\n');
 
       const raw = await this.generate(prompt);

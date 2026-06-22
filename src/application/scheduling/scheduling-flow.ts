@@ -93,6 +93,16 @@ export function availableSlotsForLocation(locationId: LocationId): string[] {
   return slots;
 }
 
+/** Convert 24h slot list to 12h AM/PM for user-facing display. */
+export function formatSlots12h(slots: string[]): string[] {
+  return slots.map((slot) => {
+    const [h, m] = slot.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    return m === 0 ? `${hour12}:00 ${period}` : `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+  });
+}
+
 export class SchedulingFlow {
   constructor(
     private readonly conversations: ConversationStateStore,
@@ -148,7 +158,7 @@ export class SchedulingFlow {
       state,
       'scheduling.date',
       { ...this.draft(state), locationId },
-      'Envía la fecha de la cita en formato YYYY-MM-DD.',
+      '¿Qué día le gustaría venir? Puede escribir por ejemplo: "mañana", "el lunes", "25 de junio" o "25/06/2026"',
       true
     );
   }
@@ -162,18 +172,19 @@ export class SchedulingFlow {
     }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
-      return this.persist(state, state.step, state.data, 'Por favor envía una fecha válida en formato YYYY-MM-DD.', false);
+      return this.persist(state, state.step, state.data, 'No pude entender esa fecha. Intente con "mañana", "el lunes" o escriba el día así: 25/06/2026.', false);
     }
 
     const draft = this.draft(state);
     const locationId = draft.locationId ?? 'surco';
     const slots = await this.availableSlots(locationId, dateText);
+    const slots12h = formatSlots12h(slots);
 
     return this.persist(
       state,
       'scheduling.slot',
       { ...draft, date: dateText },
-      `Elige uno de los horarios disponibles de 30 minutos: ${slots.join(', ')}.`,
+      `¿A qué hora le podemos agendar? Horarios disponibles:\n${slots12h.join(', ')}\n\nPuede escribir como "7pm", "7 de la noche", "6 y media", etc.`,
       true
     );
   }
@@ -189,8 +200,9 @@ export class SchedulingFlow {
       selectedSlot = await this.aiInterpreter.interpretSlot(text, slots);
     }
 
+    const slots12h = formatSlots12h(slots);
     if (!selectedSlot) {
-      return this.persist(state, state.step, state.data, `Por favor elige uno de estos horarios: ${slots.join(', ')}.`, false);
+      return this.persist(state, state.step, state.data, `No reconocí ese horario. Los disponibles son: ${slots12h.join(', ')}.`, false);
     }
 
     return this.persist(
@@ -341,9 +353,12 @@ export class SchedulingFlow {
     }
 
     if (field === 'gait') {
-      const gait = text.toLowerCase();
-      if (gait !== 'normal' && gait !== 'imbalance') return undefined;
-      return { gait };
+      const g = text.toLowerCase().trim();
+      const isNormal = ['normal', 'bien', 'sin problemas', 'ok', 'buena', 'bueno'].some((v) => g.includes(v));
+      const isImbalance = ['dificultad', 'cojeo', 'cojea', 'mal', 'desequilibrio', 'imbalance', 'irregular', 'problemas al caminar'].some((v) => g.includes(v));
+      if (isNormal) return { gait: 'normal' };
+      if (isImbalance) return { gait: 'imbalance' };
+      return undefined;
     }
 
     const mapping: Record<Exclude<RequiredIntakeField, 'age' | 'gait'>, string> = {
@@ -369,7 +384,7 @@ export class SchedulingFlow {
       painArea: 'Por favor envía la zona de dolor.',
       painDuration: 'Por favor envía el tiempo de evolución del dolor.',
       limitation: 'Por favor describe la limitación funcional.',
-      gait: 'Por favor envía la marcha: normal o desequilibrio.',
+      gait: '¿Cómo es su forma de caminar actualmente? Responde: normal, o con dificultad',
       assistiveDevice: 'Por favor envía el dispositivo de apoyo, o ninguno.',
       motive: 'Por favor envía el motivo de la consulta.'
     };
@@ -377,6 +392,9 @@ export class SchedulingFlow {
   }
 
   private clarificationFor(field: RequiredIntakeField): string {
+    if (field === 'gait') {
+      return 'No entendí esa respuesta. ¿Cómo camina el paciente? Responde: normal, o con dificultad para caminar.';
+    }
     return `Ese valor no es válido. ${this.promptFor(field)}`;
   }
 
