@@ -70,10 +70,10 @@ async function main() {
     .registerHandler(new AuthorizationGuard())        // 1. deny unauthorized staff commands
     .registerHandler(new ReplyCommandHandler())        // 2. /reply <caseId> <msg>
     .registerHandler(new FileUploadHandler())          // 3. file uploads
-    .registerHandler(new StaffCommandHandler())        // 4. authorized staff commands
-    .registerHandler(new StartCommandHandler())        // 5. /start
-    .registerHandler(new ScheduleCommandHandler())     // 6. /schedule
-    .registerHandler(new UploadDocumentHandler(knowledgeIngestion, gemini, scheduleRepo))  // 7. /upload_document
+    .registerHandler(new UploadDocumentHandler(knowledgeIngestion, gemini, scheduleRepo))  // 4. /upload_document
+    .registerHandler(new StaffCommandHandler())        // 5. authorized staff commands
+    .registerHandler(new StartCommandHandler())        // 6. /start
+    .registerHandler(new ScheduleCommandHandler())     // 7. /schedule
     .registerHandler(new TextMessageHandler());        // 8. fallback (RAG or scheduling)
 
   // Server

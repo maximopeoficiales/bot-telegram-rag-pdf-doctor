@@ -6,7 +6,6 @@ import type { HandlerContext, HandlerResult } from '../handler-context.js';
 const STAFF_COMMANDS: BotCommand[] = [
   BotCommand.STAFF,
   BotCommand.CONFIG,
-  BotCommand.UPLOAD_DOCUMENT,
 ];
 
 export class StaffCommandHandler implements CommandHandler {
