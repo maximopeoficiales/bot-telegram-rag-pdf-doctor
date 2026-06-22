@@ -42,7 +42,11 @@ async function main() {
     clientSecret: env.GOOGLE_CLIENT_SECRET,
     refreshToken: env.GOOGLE_REFRESH_TOKEN
   });
-  const gemini = new GeminiAdapter({ apiKey: env.GEMINI_API_KEY });
+  const gemini = new GeminiAdapter({
+    apiKey: env.GEMINI_API_KEY,
+    generationModel: env.GEMINI_MODEL,
+    embeddingModel: env.GEMINI_EMBEDDING_MODEL
+  });
   const vectorStore = new PgVectorStore(db);
 
   // Application services

@@ -3,6 +3,8 @@ import type { LocationId } from '../../application/scheduling/scheduling-flow.js
 
 export type GeminiAdapterConfig = {
   apiKey: string;
+  generationModel?: string;
+  embeddingModel?: string;
   fetch?: typeof fetch;
 };
 
@@ -21,16 +23,20 @@ export type ExtractedSchedule = {
   vmt?: { start: string; end: string };
 };
 
-const EMBEDDING_MODEL = 'text-embedding-004';
-const GENERATION_MODEL = 'gemini-2.0-flash';
+const DEFAULT_GENERATION_MODEL = 'gemini-1.5-flash';
+const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
 const EMBEDDING_DIMENSIONS = 768;
 
 export class GeminiAdapter implements EmbeddingPort, GenerationPort {
   private readonly fetchFn: typeof fetch;
   private readonly apiKey: string;
+  private readonly generationModel: string;
+  private readonly embeddingModel: string;
 
   constructor(config: GeminiAdapterConfig) {
     this.apiKey = config.apiKey;
+    this.generationModel = config.generationModel ?? DEFAULT_GENERATION_MODEL;
+    this.embeddingModel = config.embeddingModel ?? DEFAULT_EMBEDDING_MODEL;
     this.fetchFn = config.fetch ?? fetch;
   }
 
@@ -40,10 +46,10 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort {
     const requests = chunks.map((content) => ({ content: { parts: [{ text: content }] } }));
 
     const response = await this.post<EmbedResponse>(
-      `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${this.embeddingModel}:batchEmbedContents`,
       {
         requests: requests.map((r) => ({
-          model: `models/${EMBEDDING_MODEL}`,
+          model: `models/${this.embeddingModel}`,
           content: r.content,
           outputDimensionality: EMBEDDING_DIMENSIONS
         }))
@@ -55,9 +61,9 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort {
 
   async embedQuery(query: string): Promise<number[]> {
     const response = await this.post<{ embedding: { values: number[] } }>(
-      `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${this.embeddingModel}:embedContent`,
       {
-        model: `models/${EMBEDDING_MODEL}`,
+        model: `models/${this.embeddingModel}`,
         content: { parts: [{ text: query }] },
         outputDimensionality: EMBEDDING_DIMENSIONS
       }
@@ -207,7 +213,7 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort {
 
   private async generate(prompt: string): Promise<string> {
     const response = await this.post<GenerateResponse>(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GENERATION_MODEL}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${this.generationModel}:generateContent`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }

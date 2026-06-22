@@ -8,6 +8,8 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_STAFF_GROUP_CHAT_ID: z.string().min(1),
   GEMINI_API_KEY: z.string().min(1),
+  GEMINI_MODEL: z.string().default('gemini-1.5-flash'),
+  GEMINI_EMBEDDING_MODEL: z.string().default('text-embedding-004'),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_REDIRECT_URI: z.string().url(),
