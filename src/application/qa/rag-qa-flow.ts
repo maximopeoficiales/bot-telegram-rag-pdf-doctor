@@ -24,7 +24,10 @@ export class RagQaFlow {
     }
 
     const queryEmbedding = await this.embeddings.embedQuery(question);
-    const results = await this.vectorStore.search({ queryEmbedding, limit: 4, minScore: 0.72 });
+    // nomic-embed-text cosine similarity scores typically range 0.45-0.65 for
+    // relevant Spanish content. The 0.72 threshold was calibrated for OpenAI
+    // embeddings; lower it to 0.40 for local models.
+    const results = await this.vectorStore.search({ queryEmbedding, limit: 4, minScore: 0.40 });
 
     if (results.length === 0) {
       return {
