@@ -10,6 +10,7 @@ import {
 } from '../../domain/eligibility/eligibility-engine.js';
 import type { AvailabilityService, BookingResult } from '../calendar/availability.service.js';
 import type { NotificationService } from '../notifications/notification.service.js';
+import type { GeminiAdapter } from '../../adapters/gemini/gemini.adapter.js';
 
 export const requiredIntakeFields = [
   'fullName',
@@ -47,7 +48,8 @@ export type SchedulingCaseStore = {
   create(input: { telegramUserId: string; status: 'pending_review'; intake: PatientIntake }): Promise<{ id: number }>;
 };
 
-const locationWindows: Record<LocationId, { label: string; start: string; end: string }> = {
+// Fallback windows used only when DB has no schedule and AvailabilityService is absent
+const fallbackWindows: Record<LocationId, { label: string; start: string; end: string }> = {
   surco: { label: 'Surco', start: '10:00', end: '13:00' },
   vmt: { label: 'VMT', start: '18:00', end: '20:00' }
 };
@@ -69,7 +71,7 @@ export function toPatientIntake(intake: Partial<PatientIntake>): PatientIntake {
 }
 
 export function availableSlotsForLocation(locationId: LocationId): string[] {
-  const window = locationWindows[locationId];
+  const window = fallbackWindows[locationId];
   const [startHour, startMinute] = window.start.split(':').map(Number);
   const [endHour, endMinute] = window.end.split(':').map(Number);
   const slots: string[] = [];
@@ -92,7 +94,8 @@ export class SchedulingFlow {
     private readonly eligibilityEngine = new EligibilityEngine(),
     private readonly availability?: AvailabilityService,
     private readonly notifications?: NotificationService,
-    private readonly cases?: SchedulingCaseStore
+    private readonly cases?: SchedulingCaseStore,
+    private readonly gemini?: GeminiAdapter
   ) {}
 
   async handleMessage(telegramUserId: string, text: string): Promise<SchedulingReply> {
@@ -120,7 +123,12 @@ export class SchedulingFlow {
   }
 
   private async handleLocation(state: ConversationState, text: string): Promise<SchedulingReply> {
-    const locationId = this.parseLocation(text);
+    let locationId = this.parseLocation(text);
+
+    if (!locationId && this.gemini) {
+      locationId = await this.gemini.interpretLocation(text);
+    }
+
     if (!locationId) {
       return this.persist(state, state.step, state.data, 'Por favor elige entre Surco o VMT.', false);
     }
@@ -135,18 +143,27 @@ export class SchedulingFlow {
   }
 
   private async handleDate(state: ConversationState, text: string): Promise<SchedulingReply> {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    let dateText = text;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText) && this.gemini) {
+      const interpreted = await this.gemini.interpretDate(text);
+      if (interpreted) dateText = interpreted;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
       return this.persist(state, state.step, state.data, 'Por favor envía una fecha válida en formato YYYY-MM-DD.', false);
     }
 
     const draft = this.draft(state);
     const locationId = draft.locationId ?? 'surco';
-    const slots = this.availability ? await this.availability.availableSlots({ locationId, date: text }) : availableSlotsForLocation(locationId);
+    const slots = this.availability
+      ? await this.availability.availableSlots({ locationId, date: dateText })
+      : availableSlotsForLocation(locationId);
 
     return this.persist(
       state,
       'scheduling.slot',
-      { ...draft, date: text },
+      { ...draft, date: dateText },
       `Elige uno de los horarios disponibles de 30 minutos: ${slots.join(', ')}.`,
       true
     );
@@ -157,14 +174,20 @@ export class SchedulingFlow {
     const locationId = draft.locationId ?? 'surco';
     const slots = availableSlotsForLocation(locationId);
 
-    if (!slots.includes(text)) {
+    let selectedSlot = slots.includes(text) ? text : null;
+
+    if (!selectedSlot && this.gemini) {
+      selectedSlot = await this.gemini.interpretSlot(text, slots);
+    }
+
+    if (!selectedSlot) {
       return this.persist(state, state.step, state.data, `Por favor elige uno de estos horarios: ${slots.join(', ')}.`, false);
     }
 
     return this.persist(
       state,
       'scheduling.intake',
-      { ...draft, slot: text, intake: {}, intakeField: 'fullName' },
+      { ...draft, slot: selectedSlot, intake: {}, intakeField: 'fullName' },
       'Por favor envía el nombre completo del paciente.',
       true
     );
@@ -217,7 +240,14 @@ export class SchedulingFlow {
   }
 
   private async handleConfirmation(state: ConversationState, text: string): Promise<SchedulingReply> {
-    if (!['confirm', 'yes', 'book', 'confirmar', 'sí', 'si', 'reservar'].includes(text.toLowerCase())) {
+    const exactMatch = ['confirm', 'yes', 'book', 'confirmar', 'sí', 'si', 'reservar'].includes(text.toLowerCase());
+    let isConfirmed = exactMatch;
+
+    if (!isConfirmed && this.gemini) {
+      isConfirmed = await this.gemini.interpretConfirmation(text);
+    }
+
+    if (!isConfirmed) {
       return this.persist(state, state.step, state.data, 'Responde confirmar para reservar esta cita, o elige otro horario.', false);
     }
 

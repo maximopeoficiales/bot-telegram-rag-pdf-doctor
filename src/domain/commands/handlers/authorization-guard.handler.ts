@@ -6,7 +6,7 @@ import type { HandlerContext, HandlerResult } from '../handler-context.js';
 const STAFF_COMMANDS: BotCommand[] = [
   BotCommand.STAFF,
   BotCommand.CONFIG,
-  BotCommand.UPLOAD_KNOWLEDGE,
+  BotCommand.UPLOAD_DOCUMENT,
 ];
 
 export class AuthorizationGuard implements CommandHandler {

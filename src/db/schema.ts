@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, integer, jsonb, pgTable, serial, text, timestamp, varchar, vector } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, varchar, vector } from 'drizzle-orm/pg-core';
 
 export const telegramUsers = pgTable('telegram_users', {
   id: serial('id').primaryKey(),
@@ -39,7 +39,9 @@ export const schedules = pgTable('schedules', {
   endTime: varchar('end_time', { length: 5 }).notNull(),
   appointmentDurationMinutes: integer('appointment_duration_minutes').notNull().default(30),
   enabled: boolean('enabled').notNull().default(true)
-});
+}, (table) => [
+  uniqueIndex('schedules_location_id_day_of_week_unique').on(table.locationId, table.dayOfWeek)
+]);
 
 export const patientCases = pgTable('patient_cases', {
   id: serial('id').primaryKey(),

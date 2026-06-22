@@ -34,6 +34,9 @@ export class KnowledgeIngestionService {
       return { accepted: false, reason: 'empty_content' };
     }
 
+    // Replace existing document with same title (upsert by title)
+    await this.vectorStore.deleteByTitle(request.title);
+
     const vectors = await this.embeddings.embedChunks(chunks);
     const stored = await this.vectorStore.upsertDocument({
       title: request.title,

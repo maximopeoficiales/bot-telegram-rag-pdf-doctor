@@ -5,6 +5,8 @@ import type { ConversationStateStore } from '../../domain/conversation/conversat
 import type { SchedulingFlow } from '../../application/scheduling/scheduling-flow.js';
 import type { NotificationService } from '../../application/notifications/notification.service.js';
 import type { StaffReplyService } from '../../application/notifications/staff-reply.service.js';
+import type { RagQaFlow } from '../../application/qa/rag-qa-flow.js';
+import type { UploadDocumentHandler } from '../../domain/commands/handlers/upload-document.handler.js';
 import { MessageParser, type TelegramUpdate } from './message-parser.js';
 
 export type StaffAllowlistStore = {
@@ -39,7 +41,9 @@ export class MessageRouter {
     private readonly schedulingFlow: SchedulingFlow,
     private readonly messaging: MessagingPort,
     private readonly notifications?: NotificationService,
-    private readonly staffReplies?: StaffReplyService
+    private readonly staffReplies?: StaffReplyService,
+    private readonly ragQaFlow?: RagQaFlow,
+    private readonly uploadDocumentHandler?: UploadDocumentHandler
   ) {}
 
   registerHandler(handler: CommandHandler): this {
@@ -84,7 +88,9 @@ export class MessageRouter {
       conversations: this.conversations,
       schedulingFlow: this.schedulingFlow,
       notifications: this.notifications,
-      staffReplies: this.staffReplies
+      staffReplies: this.staffReplies,
+      ragQaFlow: this.ragQaFlow,
+      uploadDocumentHandler: this.uploadDocumentHandler
     };
   }
 }

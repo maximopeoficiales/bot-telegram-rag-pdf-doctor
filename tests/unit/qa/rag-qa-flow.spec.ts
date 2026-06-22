@@ -26,6 +26,9 @@ function vectorStore(results: KnowledgeSearchResult[]): VectorStorePort {
     async upsertDocument() {
       throw new Error('QA must not write knowledge documents');
     },
+    async deleteByTitle() {
+      throw new Error('QA must not delete knowledge documents');
+    },
     async search() {
       return results;
     }

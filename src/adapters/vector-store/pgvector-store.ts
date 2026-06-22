@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { knowledgeChunks, knowledgeDocuments } from '../../db/schema.js';
 import type {
@@ -22,6 +22,30 @@ type SearchRow = {
 
 export class PgVectorStore implements VectorStorePort {
   constructor(private readonly db: DrizzleDatabase) {}
+
+  async deleteByTitle(title: string): Promise<number> {
+    // Find documents with this title
+    const docs = await this.db
+      .select({ id: knowledgeDocuments.id })
+      .from(knowledgeDocuments)
+      .where(eq(knowledgeDocuments.title, title));
+
+    if (docs.length === 0) return 0;
+
+    const ids = docs.map((d) => d.id);
+
+    // Delete chunks first (FK constraint)
+    for (const id of ids) {
+      await this.db.delete(knowledgeChunks).where(eq(knowledgeChunks.documentId, id));
+    }
+
+    // Delete documents
+    for (const id of ids) {
+      await this.db.delete(knowledgeDocuments).where(eq(knowledgeDocuments.id, id));
+    }
+
+    return ids.length;
+  }
 
   async upsertDocument(input: UpsertKnowledgeDocumentInput): Promise<UpsertKnowledgeDocumentResult> {
     const documentRows = await this.db

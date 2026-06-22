@@ -1,6 +1,7 @@
 import type { CalendarPort } from '../../ports/calendar.port.js';
 import type { PatientIntake } from '../../domain/eligibility/eligibility-engine.js';
 import type { LocationId } from '../scheduling/scheduling-flow.js';
+import type { ScheduleRepository } from '../scheduling/schedule.repository.js';
 
 export type AppointmentRepository = {
   create(input: { caseId: number; googleEventId: string; locationId: LocationId; startsAt: Date; endsAt: Date }): Promise<void>;
@@ -23,28 +24,30 @@ export type BookingResult =
   | { booked: true; caseId: number; googleEventId: string; startsAt: Date; endsAt: Date }
   | { booked: false; reason: 'slot_unavailable' };
 
-const locationConfig: Record<LocationId, { label: string; start: string; end: string; timeZone: string }> = {
-  surco: { label: 'Surco', start: '10:00', end: '13:00', timeZone: 'America/Lima' },
-  vmt: { label: 'VMT', start: '18:00', end: '20:00', timeZone: 'America/Lima' }
+// Fallback config used only when DB has no schedule for a location
+const fallbackConfig: Record<LocationId, { label: string; start: string; end: string; timeZone: string; durationMinutes: number }> = {
+  surco: { label: 'Surco', start: '10:00', end: '13:00', timeZone: 'America/Lima', durationMinutes: 30 },
+  vmt:   { label: 'VMT',   start: '18:00', end: '20:00', timeZone: 'America/Lima', durationMinutes: 30 }
 };
 
 export class AvailabilityService {
   constructor(
     private readonly calendar: CalendarPort,
     private readonly cases?: PatientCaseRepository,
-    private readonly appointments?: AppointmentRepository
+    private readonly appointments?: AppointmentRepository,
+    private readonly scheduleRepo?: ScheduleRepository
   ) {}
 
   async availableSlots(input: { locationId: LocationId; date: string }): Promise<string[]> {
-    const location = locationConfig[input.locationId];
-    const candidateSlots = this.windowSlots(input.locationId);
-    const dayStart = this.toLimaDate(input.date, location.start);
-    const dayEnd = this.toLimaDate(input.date, location.end);
-    const busy = await this.calendar.freeBusy({ timeMin: dayStart, timeMax: dayEnd, timeZone: location.timeZone });
+    const config = await this.resolveConfig(input.locationId);
+    const candidateSlots = this.windowSlots(config.start, config.end, config.durationMinutes);
+    const dayStart = this.toLocalDate(input.date, config.start, config.timeZone);
+    const dayEnd = this.toLocalDate(input.date, config.end, config.timeZone);
+    const busy = await this.calendar.freeBusy({ timeMin: dayStart, timeMax: dayEnd, timeZone: config.timeZone });
 
     return candidateSlots.filter((slot) => {
-      const startsAt = this.toLimaDate(input.date, slot);
-      const endsAt = new Date(startsAt.getTime() + 30 * 60_000);
+      const startsAt = this.toLocalDate(input.date, slot, config.timeZone);
+      const endsAt = new Date(startsAt.getTime() + config.durationMinutes * 60_000);
       return !busy.some((interval) => startsAt < interval.end && endsAt > interval.start);
     });
   }
@@ -54,17 +57,18 @@ export class AvailabilityService {
       return { booked: false, reason: 'slot_unavailable' };
     }
 
-    const startsAt = this.toLimaDate(input.date, input.slot);
-    const endsAt = new Date(startsAt.getTime() + 30 * 60_000);
+    const config = await this.resolveConfig(input.locationId);
+    const startsAt = this.toLocalDate(input.date, input.slot, config.timeZone);
+    const endsAt = new Date(startsAt.getTime() + config.durationMinutes * 60_000);
     const patientCase = await this.cases?.create({ telegramUserId: input.telegramUserId, status: 'confirmed', intake: input.intake });
     const caseId = patientCase?.id ?? 0;
     const event = await this.calendar.createEvent({
       summary: `Appointment - ${input.intake.fullName}`,
       description: `DNI: ${input.intake.dni}\nMotive: ${input.intake.motive}`,
-      location: locationConfig[input.locationId].label,
+      location: config.label,
       startsAt,
       endsAt,
-      timeZone: locationConfig[input.locationId].timeZone,
+      timeZone: config.timeZone,
       metadata: { telegramUserId: input.telegramUserId, caseId: String(caseId), locationId: input.locationId }
     });
 
@@ -76,22 +80,34 @@ export class AvailabilityService {
     return (await this.availableSlots({ locationId: input.locationId, date: input.date })).includes(input.slot);
   }
 
-  windowSlots(locationId: LocationId): string[] {
-    const location = locationConfig[locationId];
-    const [startHour, startMinute] = location.start.split(':').map(Number);
-    const [endHour, endMinute] = location.end.split(':').map(Number);
-    const slots: string[] = [];
-    const start = startHour * 60 + startMinute;
-    const end = endHour * 60 + endMinute;
+  async getLocationLabel(locationId: LocationId): Promise<string> {
+    const config = await this.resolveConfig(locationId);
+    return config.label;
+  }
 
-    for (let minute = start; minute + 30 <= end; minute += 30) {
+  windowSlots(start: string, end: string, durationMinutes = 30): string[] {
+    const [startHour, startMinute] = start.split(':').map(Number);
+    const [endHour, endMinute] = end.split(':').map(Number);
+    const slots: string[] = [];
+    const startMin = startHour * 60 + startMinute;
+    const endMin = endHour * 60 + endMinute;
+
+    for (let minute = startMin; minute + durationMinutes <= endMin; minute += durationMinutes) {
       slots.push(`${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
     }
 
     return slots;
   }
 
-  private toLimaDate(date: string, time: string): Date {
+  private async resolveConfig(locationId: LocationId) {
+    if (this.scheduleRepo) {
+      const schedule = await this.scheduleRepo.findByLocation(locationId);
+      if (schedule) return schedule;
+    }
+    return fallbackConfig[locationId];
+  }
+
+  private toLocalDate(date: string, time: string, _timeZone: string): Date {
     return new Date(`${date}T${time}:00-05:00`);
   }
 }

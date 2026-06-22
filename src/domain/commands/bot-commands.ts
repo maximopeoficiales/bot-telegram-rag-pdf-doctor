@@ -4,7 +4,7 @@ export enum BotCommand {
   REPLY = '/reply',
   STAFF = '/staff',
   CONFIG = '/config',
-  UPLOAD_KNOWLEDGE = '/upload_knowledge',
+  UPLOAD_DOCUMENT = '/upload_document',
 }
 
 export enum MessageType {

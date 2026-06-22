@@ -15,10 +15,16 @@ const fakeEmbedding: EmbeddingPort = {
 
 class CapturingVectorStore implements VectorStorePort {
   upserts: UpsertKnowledgeDocumentInput[] = [];
+  deleted: string[] = [];
 
   async upsertDocument(input: UpsertKnowledgeDocumentInput) {
     this.upserts.push(input);
     return { documentId: 10, chunkCount: input.chunks.length };
+  }
+
+  async deleteByTitle(title: string) {
+    this.deleted.push(title);
+    return 0;
   }
 
   async search() {

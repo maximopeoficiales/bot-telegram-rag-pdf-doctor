@@ -35,5 +35,6 @@ export type KnowledgeSearchResult = {
 
 export type VectorStorePort = {
   upsertDocument(input: UpsertKnowledgeDocumentInput): Promise<UpsertKnowledgeDocumentResult>;
+  deleteByTitle(title: string): Promise<number>;
   search(input: VectorSearchInput): Promise<KnowledgeSearchResult[]>;
 };

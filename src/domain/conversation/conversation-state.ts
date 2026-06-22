@@ -6,9 +6,12 @@ export type ConversationStep =
   | 'scheduling.intake'
   | 'scheduling.pending_review'
   | 'scheduling.rejected'
-  | 'scheduling.ready_to_confirm';
+  | 'scheduling.ready_to_confirm'
+  | 'upload_document.waiting_title'
+  | 'upload_document.waiting_content'
+  | 'upload_document.waiting_schedule_confirm';
 
-export type ConversationFlow = 'none' | 'scheduling' | 'qa' | 'staff';
+export type ConversationFlow = 'none' | 'scheduling' | 'qa' | 'staff' | 'upload_document';
 
 export type ConversationState = {
   telegramUserId: string;
