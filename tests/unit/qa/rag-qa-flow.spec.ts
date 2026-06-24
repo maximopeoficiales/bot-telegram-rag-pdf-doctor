@@ -67,12 +67,14 @@ describe('RagQaFlow', () => {
     expect(answer.text).toContain('No tengo información');
   });
 
-  it('redirects booking decisions to scheduling without making eligibility decisions', async () => {
+  it('returns insufficient_knowledge for scheduling questions when no relevant docs exist', async () => {
     const qa = new RagQaFlow(embeddings, vectorStore([]), generation);
 
+    // Scheduling-intent questions now go through RAG like any other question.
+    // With no matching documents, the bot returns insufficient_knowledge so the
+    // TextMessageHandler can offer to start the scheduling flow conversationally.
     const answer = await qa.answer('Can I book an appointment tomorrow?');
 
-    expect(answer.kind).toBe('redirect_to_scheduling');
-    expect(answer.text).toContain('/schedule');
+    expect(answer.kind).toBe('insufficient_knowledge');
   });
 });

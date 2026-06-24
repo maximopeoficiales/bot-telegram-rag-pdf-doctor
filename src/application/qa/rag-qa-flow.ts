@@ -3,10 +3,7 @@ import type { VectorStorePort } from '../../ports/vector-store.port.js';
 
 export type QaAnswer =
   | { kind: 'answer'; text: string; citations: Array<{ documentId: number; chunkId: number; title: string }> }
-  | { kind: 'redirect_to_scheduling'; text: string }
   | { kind: 'insufficient_knowledge'; text: string };
-
-const schedulingIntent = /\b(book|schedule|appointment|eligible|availability|slot|cita|agenda|turno|agendar|reservar|consulta|atenci[oó]n|atender|quiero|quisiera)\b/i;
 
 export class RagQaFlow {
   constructor(
@@ -16,13 +13,6 @@ export class RagQaFlow {
   ) {}
 
   async answer(question: string): Promise<QaAnswer> {
-    if (schedulingIntent.test(question)) {
-      return {
-        kind: 'redirect_to_scheduling',
-        text: 'Puedo compartir información general aquí. Para agendar una cita o consultar elegibilidad, inicia el flujo con /schedule.'
-      };
-    }
-
     const queryEmbedding = await this.embeddings.embedQuery(question);
     // nomic-embed-text cosine similarity scores typically range 0.45-0.65 for
     // relevant Spanish content. The 0.72 threshold was calibrated for OpenAI
