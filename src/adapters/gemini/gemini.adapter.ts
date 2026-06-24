@@ -79,10 +79,10 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort, AiInterpret
       .join('\n\n');
 
     const prompt = [
-      'Eres el asistente virtual de un consultorio de quiropraxia.',
+      'Eres el asistente virtual de un consultorio de quiropraxia en Perú.',
       'Responde la pregunta del paciente basándote ÚNICAMENTE en la información del contexto.',
       'Si el contexto no contiene la respuesta, dilo claramente.',
-      'Responde en español, de forma clara y amable.',
+      'Responde en español formal peruano, de forma concisa y amable. Máximo 3 oraciones.',
       '',
       `Contexto:\n${contextBlock}`,
       '',
@@ -245,6 +245,92 @@ export class GeminiAdapter implements EmbeddingPort, GenerationPort, AiInterpret
       if (cleaned === 'surco') return 'surco';
       if (cleaned === 'vmt') return 'vmt';
       return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async interpretAge(text: string): Promise<number | null> {
+    try {
+      const prompt = [
+        `El paciente indicó su edad de esta forma: "${text}"`,
+        'Extrae el número de años. Solo devuelve el número entero, sin texto adicional.',
+        'Si no puedes determinar una edad válida, devuelve: null'
+      ].join('\n');
+
+      const raw = await this.generate(prompt);
+      const match = raw.trim().match(/\d+/);
+      if (!match) return null;
+      const age = Number(match[0]);
+      return Number.isInteger(age) && age > 0 && age < 120 ? age : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async interpretDni(text: string): Promise<string | null> {
+    try {
+      const prompt = [
+        `El paciente indicó su DNI de esta forma: "${text}"`,
+        'Extrae el número de DNI (8 dígitos numéricos). Solo devuelve los 8 dígitos, sin texto adicional.',
+        'Si no puedes determinar un DNI válido de 8 dígitos, devuelve: null'
+      ].join('\n');
+
+      const raw = await this.generate(prompt);
+      const match = raw.replace(/\s/g, '').match(/\d{8}/);
+      return match ? match[0] : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async interpretDistrict(text: string): Promise<string | null> {
+    try {
+      const prompt = [
+        `El paciente indicó su distrito de esta forma: "${text}"`,
+        'Extrae el nombre del distrito de Lima o ciudad peruana. Devuelve solo el nombre del distrito, sin texto adicional.',
+        'Si no puedes determinar un distrito válido, devuelve: null'
+      ].join('\n');
+
+      const raw = await this.generate(prompt);
+      const cleaned = raw.trim();
+      return cleaned && cleaned.toLowerCase() !== 'null' ? cleaned : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async interpretGait(text: string): Promise<'normal' | 'imbalance' | null> {
+    try {
+      const prompt = [
+        `El paciente describió su forma de caminar así: "${text}"`,
+        '¿Camina con normalidad o tiene dificultad para caminar?',
+        'Devuelve exactamente: normal o imbalance',
+        'Si no puedes determinarlo, devuelve: null'
+      ].join('\n');
+
+      const raw = await this.generate(prompt);
+      const cleaned = raw.trim().toLowerCase();
+      if (cleaned === 'normal') return 'normal';
+      if (cleaned === 'imbalance') return 'imbalance';
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async interpretAssistiveDevice(text: string): Promise<string | null> {
+    try {
+      const prompt = [
+        `El paciente indicó su dispositivo de apoyo así: "${text}"`,
+        'Extrae si usa algún dispositivo (bastón, andador, muletas, silla de ruedas) o ninguno.',
+        'Devuelve el nombre del dispositivo en español, o "ninguno" si no usa nada.',
+        'Si no puedes determinarlo, devuelve: null'
+      ].join('\n');
+
+      const raw = await this.generate(prompt);
+      const cleaned = raw.trim().toLowerCase();
+      return cleaned && cleaned !== 'null' ? cleaned : null;
     } catch {
       return null;
     }

@@ -33,7 +33,7 @@ describe('telegram bot MVP e2e', () => {
 
     expect(createdEvents).toEqual(['Cita: Ada Patient']);
     expect(staffMessages.some((m) => m.includes('Nueva cita confirmada'))).toBe(true);
-    expect(sentMessages.at(-1)).toContain('cita está confirmada');
+    expect(sentMessages.at(-1)).toContain('cita ha sido confirmada');
   });
 
   it('holds radiography review cases without creating calendar events', async () => {

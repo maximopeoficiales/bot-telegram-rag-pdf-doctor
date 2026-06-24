@@ -50,7 +50,15 @@ export type SchedulingCaseStore = {
 
 export type SchedulingAiInterpreter = Pick<
   AiInterpretationPort,
-  'interpretConfirmation' | 'interpretDate' | 'interpretSlot' | 'interpretLocation'
+  | 'interpretConfirmation'
+  | 'interpretDate'
+  | 'interpretSlot'
+  | 'interpretLocation'
+  | 'interpretAge'
+  | 'interpretDni'
+  | 'interpretDistrict'
+  | 'interpretGait'
+  | 'interpretAssistiveDevice'
 >;
 
 // Fallback windows used only when DB has no schedule and AvailabilityService is absent
@@ -122,7 +130,7 @@ export class SchedulingFlow {
         existing,
         'scheduling.intake',
         { intake: {}, intakeField: 'fullName' },
-        'Para agendar tu cita, primero necesito algunos datos. Por favor envía tu nombre completo.',
+        'Con gusto le ayudo a agendar su cita. Para comenzar, ¿me podría indicar el nombre completo del paciente?',
         true
       );
     }
@@ -151,14 +159,14 @@ export class SchedulingFlow {
     }
 
     if (!locationId) {
-      return this.persist(state, state.step, state.data, 'Por favor elige entre Surco o VMT.', false);
+      return this.persist(state, state.step, state.data, 'Por favor indíquenos si prefiere atenderse en Surco o en VMT (Villa María del Triunfo).', false);
     }
 
     return this.persist(
       state,
       'scheduling.date',
       { ...this.draft(state), locationId },
-      '¿Qué día le gustaría venir? Puede escribir por ejemplo: "mañana", "el lunes", "25 de junio" o "25/06/2026"',
+      '¿Qué día le vendría bien para la cita? Puede escribir, por ejemplo: "mañana", "el lunes", "25 de junio" o "25/06/2026".',
       true
     );
   }
@@ -172,7 +180,7 @@ export class SchedulingFlow {
     }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
-      return this.persist(state, state.step, state.data, 'No pude entender esa fecha. Intente con "mañana", "el lunes" o escriba el día así: 25/06/2026.', false);
+      return this.persist(state, state.step, state.data, 'Disculpe, no pude entender esa fecha. Puede escribir "mañana", "el lunes" o indicar el día así: 25/06/2026.', false);
     }
 
     const draft = this.draft(state);
@@ -184,7 +192,7 @@ export class SchedulingFlow {
       state,
       'scheduling.slot',
       { ...draft, date: dateText },
-      `¿A qué hora le podemos agendar? Horarios disponibles:\n${slots12h.join(', ')}\n\nPuede escribir como "7pm", "7 de la noche", "6 y media", etc.`,
+      `¿A qué hora le podemos atender? Horarios disponibles:\n${slots12h.join(', ')}\n\nPuede indicarlo como "7pm", "7 de la noche", "6 y media", etc.`,
       true
     );
   }
@@ -202,7 +210,7 @@ export class SchedulingFlow {
 
     const slots12h = formatSlots12h(slots);
     if (!selectedSlot) {
-      return this.persist(state, state.step, state.data, `No reconocí ese horario. Los disponibles son: ${slots12h.join(', ')}.`, false);
+      return this.persist(state, state.step, state.data, `Disculpe, no reconocí ese horario. Los disponibles son: ${slots12h.join(', ')}.`, false);
     }
 
     return this.persist(
@@ -218,7 +226,7 @@ export class SchedulingFlow {
     const draft = this.draft(state);
     const field = draft.intakeField ?? 'fullName';
     const intake = { ...(draft.intake ?? {}) };
-    const parsedValue = this.parseIntakeValue(field, text);
+    const parsedValue = await this.parseIntakeValue(field, text);
 
     if (parsedValue === undefined) {
       return this.persist(state, state.step, state.data, this.clarificationFor(field), false);
@@ -268,7 +276,7 @@ export class SchedulingFlow {
       state,
       'scheduling.location',
       { ...draft, intake, eligibility: decision },
-      '¡Perfecto, podemos atenderte! ¿En qué sede prefieres atenderte: Surco o VMT?',
+      '¡Excelente, con gusto le atendemos! ¿En qué sede prefiere atenderse: Surco o VMT (Villa María del Triunfo)?',
       true
     );
   }
@@ -282,7 +290,7 @@ export class SchedulingFlow {
     }
 
     if (!isConfirmed) {
-      return this.persist(state, state.step, state.data, 'Responde confirmar para reservar esta cita, o elige otro horario.', false);
+      return this.persist(state, state.step, state.data, 'Para reservar la cita responda "confirmar", o indíquenos si desea elegir otro horario.', false);
     }
 
     const draft = this.draft(state);
@@ -291,7 +299,7 @@ export class SchedulingFlow {
         state,
         'scheduling.intake',
         { intake: {}, intakeField: 'fullName' },
-        'El borrador de reserva está incompleto. Por favor envía tu nombre completo para comenzar.',
+        'Parece que los datos de la reserva están incompletos. ¿Me podría indicar nuevamente el nombre completo del paciente?',
         false
       );
     }
@@ -313,7 +321,7 @@ export class SchedulingFlow {
     }
 
     if (!booking.booked) {
-      return this.persist(state, 'scheduling.slot', { ...draft, slot: undefined }, 'Ese horario ya no está disponible. Por favor elige otro.', false);
+      return this.persist(state, 'scheduling.slot', { ...draft, slot: undefined }, 'Ese horario ya no está disponible. Por favor indíquenos otro horario de su preferencia.', false);
     }
 
     await this.notifications?.appointmentConfirmed({
@@ -324,7 +332,35 @@ export class SchedulingFlow {
       googleEventId: booking.googleEventId
     });
 
-    return this.persist(state, 'idle', {}, 'Tu cita está confirmada. El equipo ha sido notificado.', true);
+    return this.persist(state, 'idle', {}, 'Su cita ha sido confirmada. El equipo ha sido notificado y pronto le contactaremos.', true);
+  }
+
+  /**
+   * Returns the current question the bot was asking the user in the active step.
+   * Used by TextMessageHandler to remind the user where the flow was paused.
+   */
+  getCurrentPrompt(state: ConversationState): string {
+    const draft = this.draft(state);
+
+    switch (state.step) {
+      case 'scheduling.intake': {
+        const field = draft.intakeField ?? 'fullName';
+        return this.promptFor(field);
+      }
+      case 'scheduling.location':
+        return '¿En qué sede prefiere atenderse: Surco o VMT (Villa María del Triunfo)?';
+      case 'scheduling.date':
+        return '¿Qué día le vendría bien para la cita?';
+      case 'scheduling.slot': {
+        const locationId = draft.locationId ?? 'surco';
+        const window = fallbackWindows[locationId];
+        return `¿A qué hora le podemos atender? El horario disponible es de ${window.start} a ${window.end}.`;
+      }
+      case 'scheduling.ready_to_confirm':
+        return 'Si todo está correcto, responda "confirmar" para reservar la cita.';
+      default:
+        return 'Estamos en proceso de agendar su cita.';
+    }
   }
 
   private draft(state: ConversationState): SchedulingDraft {
@@ -344,12 +380,48 @@ export class SchedulingFlow {
     return null;
   }
 
-  private parseIntakeValue(field: RequiredIntakeField, text: string): Partial<PatientIntake> | undefined {
+  private async parseIntakeValue(field: RequiredIntakeField, text: string): Promise<Partial<PatientIntake> | undefined> {
     if (text.length === 0) return undefined;
 
     if (field === 'age') {
-      const age = Number(text);
-      return Number.isInteger(age) && age > 0 ? { age } : undefined;
+      // Try direct number first
+      const direct = Number(text.trim());
+      if (Number.isInteger(direct) && direct > 0) return { age: direct };
+      // Fall back to AI interpretation
+      if (this.aiInterpreter) {
+        const age = await this.aiInterpreter.interpretAge(text);
+        if (age !== null) return { age };
+      }
+      return undefined;
+    }
+
+    if (field === 'dni') {
+      // Accept 8-digit DNI directly
+      const directDni = text.trim().replace(/\s/g, '');
+      if (/^\d{8}$/.test(directDni)) return { dni: directDni };
+      // Fall back to AI interpretation
+      if (this.aiInterpreter) {
+        const dni = await this.aiInterpreter.interpretDni(text);
+        if (dni !== null) return { dni };
+      }
+      return undefined;
+    }
+
+    if (field === 'district') {
+      if (this.aiInterpreter) {
+        const district = await this.aiInterpreter.interpretDistrict(text);
+        if (district !== null) return { district };
+      }
+      // No AI available — accept text as-is
+      return { district: text };
+    }
+
+    if (field === 'assistiveDevice') {
+      if (this.aiInterpreter) {
+        const device = await this.aiInterpreter.interpretAssistiveDevice(text);
+        if (device !== null) return { assistiveDevice: device };
+      }
+      return { assistiveDevice: text };
     }
 
     if (field === 'gait') {
@@ -358,17 +430,19 @@ export class SchedulingFlow {
       const isImbalance = ['dificultad', 'cojeo', 'cojea', 'mal', 'desequilibrio', 'imbalance', 'irregular', 'problemas al caminar'].some((v) => g.includes(v));
       if (isNormal) return { gait: 'normal' };
       if (isImbalance) return { gait: 'imbalance' };
+      // Fall back to AI interpretation
+      if (this.aiInterpreter) {
+        const interpreted = await this.aiInterpreter.interpretGait(text);
+        if (interpreted !== null) return { gait: interpreted };
+      }
       return undefined;
     }
 
-    const mapping: Record<Exclude<RequiredIntakeField, 'age' | 'gait'>, string> = {
+    const mapping: Record<Exclude<RequiredIntakeField, 'age' | 'gait' | 'dni' | 'district' | 'assistiveDevice'>, string> = {
       fullName: 'fullName',
-      dni: 'dni',
-      district: 'district',
       painArea: 'painArea',
       painDuration: 'painDuration',
       limitation: 'limitation',
-      assistiveDevice: 'assistiveDevice',
       motive: 'motive'
     };
 
@@ -377,40 +451,43 @@ export class SchedulingFlow {
 
   private promptFor(field: RequiredIntakeField): string {
     const prompts: Record<RequiredIntakeField, string> = {
-      fullName: 'Por favor envía el nombre completo del paciente.',
-      dni: 'Por favor envía el DNI del paciente.',
-      age: 'Por favor envía la edad del paciente (solo número).',
-      district: 'Por favor envía el distrito del paciente.',
-      painArea: 'Por favor envía la zona de dolor.',
-      painDuration: 'Por favor envía el tiempo de evolución del dolor.',
-      limitation: 'Por favor describe la limitación funcional.',
-      gait: '¿Cómo es su forma de caminar actualmente? Responde: normal, o con dificultad',
-      assistiveDevice: 'Por favor envía el dispositivo de apoyo, o ninguno.',
-      motive: 'Por favor envía el motivo de la consulta.'
+      fullName: '¿Cuál es el nombre completo del paciente?',
+      dni: '¿Cuál es el número de DNI del paciente?',
+      age: '¿Cuántos años tiene el paciente?',
+      district: '¿En qué distrito reside el paciente?',
+      painArea: '¿En qué zona del cuerpo siente el dolor?',
+      painDuration: '¿Desde hace cuánto tiempo tiene ese dolor?',
+      limitation: '¿Tiene alguna limitación para moverse o realizar actividades del día a día?',
+      gait: '¿Cómo es su forma de caminar actualmente? Puede responder: normal, o con dificultad.',
+      assistiveDevice: '¿Usa algún dispositivo de apoyo para caminar, como bastón o andador? Si no usa ninguno, indíquelo.',
+      motive: '¿Cuál es el motivo principal de la consulta?'
     };
     return prompts[field];
   }
 
   private clarificationFor(field: RequiredIntakeField): string {
     if (field === 'gait') {
-      return 'No entendí esa respuesta. ¿Cómo camina el paciente? Responde: normal, o con dificultad para caminar.';
+      return 'Disculpe, no entendí esa respuesta. ¿Cómo camina el paciente actualmente? Puede responder: normal, o con dificultad para caminar.';
     }
-    return `Ese valor no es válido. ${this.promptFor(field)}`;
+    if (field === 'age') {
+      return 'Disculpe, necesito la edad en número. ¿Cuántos años tiene el paciente?';
+    }
+    return `Disculpe, no pude registrar ese dato. ${this.promptFor(field)}`;
   }
 
   private messageForDecision(decision: EligibilityDecision): string {
     if (decision.outcome === 'reject') {
-      return 'Gracias. Según las reglas del consultorio, no es posible agendar esta cita a través del bot. Por favor comunícate directamente con el consultorio.';
+      return 'Gracias por su consulta. Lamentablemente, según los criterios del consultorio, no es posible agendar esta cita a través del bot. Le recomendamos comunicarse directamente con el consultorio para recibir orientación personalizada.';
     }
 
     if (decision.outcome === 'pending_review') {
       return decision.requiresRadiography
-        ? 'Gracias. Por favor sube la radiografía por Telegram para que el equipo pueda revisar el caso antes de agendar.'
-        : 'Gracias. El caso requiere revisión del equipo antes de agendar.';
+        ? 'Gracias por la información. Para continuar con la cita, necesitamos revisar una radiografía. Por favor envíela por Telegram para que el equipo pueda evaluar el caso.'
+        : 'Gracias por la información. Su caso requiere una revisión previa por parte del equipo antes de confirmar la cita. Le contactaremos a la brevedad.';
     }
 
-    // pass — this message is no longer used (replaced by the location prompt)
-    return '¡Perfecto, podemos atenderte! ¿En qué sede prefieres atenderte: Surco o VMT?';
+    // pass — replaced by the location prompt
+    return '¡Perfecto, podemos atenderle! ¿En qué sede prefiere atenderse: Surco o VMT?';
   }
 
   private confirmationSummary(draft: SchedulingDraft): string {
@@ -418,13 +495,13 @@ export class SchedulingFlow {
     const patientName = draft.intake?.fullName ?? '';
 
     return [
-      'Resumen de tu cita:',
-      `📍 Sede: ${locationLabel}`,
-      `📅 Fecha: ${draft.date ?? ''}`,
-      `🕐 Horario: ${draft.slot ?? ''}`,
-      `👤 Paciente: ${patientName}`,
+      'Estos son los datos de su cita:',
+      `Sede: ${locationLabel}`,
+      `Fecha: ${draft.date ?? ''}`,
+      `Hora: ${draft.slot ?? ''}`,
+      `Paciente: ${patientName}`,
       '',
-      'Responde confirmar para reservar.'
+      'Si todo está correcto, responda "confirmar" para reservar.'
     ].join('\n');
   }
 

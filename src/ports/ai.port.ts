@@ -18,5 +18,10 @@ export type AiInterpretationPort = {
   interpretDate(text: string): Promise<string | null>;
   interpretSlot(text: string, availableSlots: string[]): Promise<string | null>;
   interpretLocation(text: string): Promise<'surco' | 'vmt' | null>;
+  interpretAge(text: string): Promise<number | null>;
+  interpretDni(text: string): Promise<string | null>;
+  interpretDistrict(text: string): Promise<string | null>;
+  interpretGait(text: string): Promise<'normal' | 'imbalance' | null>;
+  interpretAssistiveDevice(text: string): Promise<string | null>;
   extractSchedule(content: string): Promise<ExtractedSchedule | null>;
 };

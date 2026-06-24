@@ -28,7 +28,7 @@ describe('SchedulingFlow', () => {
     const state = await store.get('100');
 
     expect(response.advanced).toBe(false);
-    expect(response.text).toContain('válido');
+    expect(response.text).toContain('Disculpe');
     expect(state?.step).toBe('scheduling.intake');
   });
 
